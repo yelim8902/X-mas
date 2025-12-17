@@ -749,7 +749,10 @@ export default function Home() {
                             ? crypto.randomUUID()
                             : String(Date.now() + Math.random());
                         window.localStorage.setItem("my_tree_id", nextTree);
-                        window.localStorage.setItem("owner_token", nextOwnerToken);
+                        window.localStorage.setItem(
+                          "owner_token",
+                          nextOwnerToken
+                        );
                         params.set("tree", nextTree);
                         params.set("owner", nextOwnerToken);
                         const nextUrl = `${
