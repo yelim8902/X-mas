@@ -202,42 +202,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // ✅ 오너/게스트 구분 로직: URL의 owner 토큰과 localStorage의 owner_token 비교
+    // ✅ URL 파라미터만으로 treeId와 isOwner 결정 (단순화)
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
-    const urlOwnerToken = params.get("owner");
-    const storedOwnerToken = window.localStorage.getItem("owner_token");
-    const myTree = window.localStorage.getItem("my_tree_id");
+    const urlOwner = params.get("owner");
 
     if (urlTree) {
       // URL에 tree 파라미터가 있는 경우
       setTreeId(urlTree);
-
-      // 오너 판단: URL에 owner 토큰이 있고, localStorage의 owner_token과 일치하며, tree_id도 일치하는 경우
-      const isOwnerTokenValid = Boolean(
-        urlOwnerToken &&
-          storedOwnerToken &&
-          urlOwnerToken === storedOwnerToken &&
-          myTree === urlTree
-      );
-      setIsOwner(isOwnerTokenValid);
-      return;
+      // URL에 owner 파라미터가 있으면 오너, 없으면 게스트
+      setIsOwner(Boolean(urlOwner));
+    } else {
+      // URL에 tree 파라미터가 없으면 → 온보딩 화면 (트리 생성 전)
+      setTreeId(null);
+      setIsOwner(false);
     }
-
-    if (myTree && storedOwnerToken) {
-      // 주인: URL에 tree 파라미터가 없지만 localStorage에 my_tree_id와 owner_token이 있으면 오너용 링크로 자동 진입
-      params.set("tree", myTree);
-      params.set("owner", storedOwnerToken);
-      const next = `${window.location.pathname}?${params.toString()}`;
-      window.history.replaceState({}, "", next);
-      setTreeId(myTree);
-      setIsOwner(true);
-      return;
-    }
-
-    // 아직 트리 생성 전(최초 방문) - 온보딩 완료 시 생성됨
-    setTreeId(null);
-    setIsOwner(false);
   }, []);
 
   // 트리 정보를 Supabase에서 로드하는 함수
@@ -330,28 +309,18 @@ export default function Home() {
     })();
   }, [treeId, isOwner, loadTreeInfo]);
 
-  // 첫 방문: host profile 없으면 온보딩
+  // 온보딩 화면 표시: URL에 tree 파라미터가 없으면 온보딩
   useEffect(() => {
-    // treeId가 있으면 Supabase에서 트리 정보를 로드하므로 온보딩 스킵
-    // (게스트든 오너든 이미 트리가 존재하는 경우이므로 온보딩 불필요)
-    if (treeId) return;
+    const params = new URLSearchParams(window.location.search);
+    const urlTree = params.get("tree");
 
-    // treeId가 없으면 → 첫 방문자이거나 트리 생성 전
-    // localStorage에 hostProfile이 있으면 온보딩 스킵, 없으면 온보딩 표시
-    const raw = window.localStorage.getItem("xmas.hostProfile");
-    if (!raw) {
+    // URL에 tree 파라미터가 없으면 온보딩 표시, 있으면 온보딩 닫기
+    if (!urlTree) {
       setIsOnboardingOpen(true);
-      return;
+    } else {
+      setIsOnboardingOpen(false);
     }
-    try {
-      const parsed = JSON.parse(raw) as HostProfile;
-      if (!parsed?.name) {
-        setIsOnboardingOpen(true);
-      }
-    } catch {
-      setIsOnboardingOpen(true);
-    }
-  }, [treeId]);
+  }, [treeId]); // treeId가 변경되면 다시 확인
 
   useEffect(() => {
     void refetchMessages();
@@ -1211,7 +1180,6 @@ export default function Home() {
             JSON.stringify(profile)
           );
           // ✅ 트리 생성(Create): tree_id와 owner_token 생성 후 localStorage 저장 + URL에 반영
-          const params = new URLSearchParams(window.location.search);
           let myTree = window.localStorage.getItem("my_tree_id");
           if (!myTree) {
             myTree =
@@ -1231,10 +1199,11 @@ export default function Home() {
             window.localStorage.setItem("owner_token", ownerToken);
           }
 
-          // 오너용 링크로 설정 (tree + owner 토큰)
-          params.set("tree", myTree);
-          params.set("owner", ownerToken);
-          const next = `${window.location.pathname}?${params.toString()}`;
+          // 오너용 링크로 설정 (tree + owner 토큰만 포함)
+          const newParams = new URLSearchParams();
+          newParams.set("tree", myTree);
+          newParams.set("owner", ownerToken);
+          const next = `${window.location.pathname}?${newParams.toString()}`;
           window.history.replaceState({}, "", next);
           setTreeId(myTree);
           setIsOwner(true);
