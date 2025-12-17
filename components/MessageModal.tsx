@@ -4,7 +4,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import type { GiftColor, ItemType } from "@/utils/supabase";
 import { GIFT_DESIGNS, ORNAMENT_DESIGNS } from "@/utils/itemAssets";
-import { getOrnamentQuestion } from "@/utils/ornamentQuestions";
+import {
+  getOrnamentQuestion,
+  CATEGORY_LABELS,
+} from "@/utils/ornamentQuestions";
 
 type Props = {
   open: boolean;
@@ -62,6 +65,26 @@ export function MessageModal({
   const [itemDesign, setItemDesign] = useState<string>("sock");
   const [error, setError] = useState<string | null>(null);
 
+  // 오너먼트 질문을 안정적으로 선택하기 위한 시드 (itemDesign 변경 시에만 새로 계산)
+  const [ornamentQuestionSeed, setOrnamentQuestionSeed] = useState<
+    string | null
+  >(null);
+
+  // itemDesign이 변경될 때만 새로운 시드 생성
+  useEffect(() => {
+    if (itemType === "ornament" && itemDesign) {
+      setOrnamentQuestionSeed(`${itemDesign}-${Date.now()}`);
+    } else {
+      setOrnamentQuestionSeed(null);
+    }
+  }, [itemType, itemDesign]);
+
+  // 질문을 안정적으로 계산 (시드가 변경될 때만 재계산)
+  const ornamentQuestion = useMemo(() => {
+    if (itemType !== "ornament" || !ornamentQuestionSeed) return null;
+    return getOrnamentQuestion(itemDesign, hostName, ornamentQuestionSeed);
+  }, [itemType, itemDesign, hostName, ornamentQuestionSeed]);
+
   const canSubmit = useMemo(() => {
     const nameOk =
       senderName.trim().length >= 1 && senderName.trim().length <= 20;
@@ -105,10 +128,7 @@ export function MessageModal({
         gift_color: giftColor,
         item_type: itemType,
         item_design: itemDesign,
-        question_category:
-          itemType === "ornament"
-            ? getOrnamentQuestion(itemDesign, hostName).category
-            : null,
+        question_category: ornamentQuestion?.category ?? null,
       });
       setSenderName("");
       setContent("");
@@ -171,8 +191,10 @@ export function MessageModal({
                 <motion.button
                   type="button"
                   onClick={onClose}
-                  whileTap={{ scale: 0.98 }}
-                  className="rounded-2xl bg-white/40 px-3 py-2 text-sm font-bold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45"
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="rounded-2xl bg-white/40 px-3 py-2 text-sm font-bold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 transition-all duration-200 hover:bg-white/50 hover:shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_12px_20px_rgba(25,50,80,0.12)]"
                 >
                   닫기
                 </motion.button>
@@ -186,16 +208,23 @@ export function MessageModal({
 
                   {/* Type toggle */}
                   <div className="mt-2 grid grid-cols-2 gap-3">
-                    <button
+                    <motion.button
                       type="button"
                       onClick={() => {
                         setItemType("ornament");
                         setItemDesign("sock");
                       }}
+                      whileHover={{ scale: 1.02, y: -1 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 25,
+                      }}
                       className={[
-                        "relative rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-left shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)]",
+                        "relative rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-left shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] transition-all duration-200",
                         itemType === "ornament"
-                          ? "ring-2 ring-skyPastel-300/60"
+                          ? "ring-2 ring-skyPastel-300/60 bg-white/55"
                           : "ring-1 ring-white/40",
                       ].join(" ")}
                     >
@@ -205,19 +234,26 @@ export function MessageModal({
                       <div className="mt-0.5 text-xs font-semibold text-slate-600">
                         트리 위에 걸려요
                       </div>
-                    </button>
+                    </motion.button>
 
-                    <button
+                    <motion.button
                       type="button"
                       onClick={() => {
                         setItemType("gift");
                         setItemDesign("red");
                         setGiftColor("red");
                       }}
+                      whileHover={{ scale: 1.02, y: -1 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 400,
+                        damping: 25,
+                      }}
                       className={[
-                        "relative rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-left shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)]",
+                        "relative rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-left shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] transition-all duration-200",
                         itemType === "gift"
-                          ? "ring-2 ring-skyPastel-300/60"
+                          ? "ring-2 ring-skyPastel-300/60 bg-white/55"
                           : "ring-1 ring-white/40",
                       ].join(" ")}
                     >
@@ -227,7 +263,7 @@ export function MessageModal({
                       <div className="mt-0.5 text-xs font-semibold text-slate-600">
                         트리 아래에 쌓여요
                       </div>
-                    </button>
+                    </motion.button>
                   </div>
 
                   {/* Design picker */}
@@ -238,15 +274,22 @@ export function MessageModal({
                     <div className="mt-2 flex flex-wrap gap-3">
                       {itemType === "ornament"
                         ? ORNAMENT_DESIGNS.map((o) => (
-                            <button
+                            <motion.button
                               key={o.key}
                               type="button"
                               onClick={() => setItemDesign(o.key)}
+                              whileHover={{ scale: 1.08, y: -2 }}
+                              whileTap={{ scale: 0.95 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 400,
+                                damping: 25,
+                              }}
                               className={[
-                                "relative h-14 w-14 rounded-3xl border border-white/50 bg-white/40 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_12px_20px_rgba(25,50,80,0.12)]",
+                                "relative h-14 w-14 rounded-3xl border border-white/50 bg-white/40 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_12px_20px_rgba(25,50,80,0.12)] transition-all duration-200",
                                 itemDesign === o.key
-                                  ? "ring-2 ring-skyPastel-300/60"
-                                  : "ring-1 ring-white/35",
+                                  ? "ring-2 ring-skyPastel-300/60 shadow-lg"
+                                  : "ring-1 ring-white/35 hover:border-white/60 hover:shadow-md",
                               ].join(" ")}
                               aria-label={o.key}
                             >
@@ -258,22 +301,29 @@ export function MessageModal({
                                   className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgba(25,50,80,0.16)]"
                                 />
                               </span>
-                            </button>
+                            </motion.button>
                           ))
                         : GIFT_DESIGNS.map(
                             ({ fileBase, giftColor: c, key }) => (
-                              <button
+                              <motion.button
                                 key={key}
                                 type="button"
                                 onClick={() => {
                                   setItemDesign(key);
                                   setGiftColor(c);
                                 }}
+                                whileHover={{ scale: 1.08, y: -2 }}
+                                whileTap={{ scale: 0.95 }}
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 400,
+                                  damping: 25,
+                                }}
                                 className={[
-                                  "relative h-14 w-14 rounded-3xl border border-white/50 bg-white/40 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_12px_20px_rgba(25,50,80,0.12)]",
+                                  "relative h-14 w-14 rounded-3xl border border-white/50 bg-white/40 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_12px_20px_rgba(25,50,80,0.12)] transition-all duration-200",
                                   itemDesign === key
-                                    ? "ring-2 ring-skyPastel-300/60"
-                                    : "ring-1 ring-white/35",
+                                    ? "ring-2 ring-skyPastel-300/60 shadow-lg"
+                                    : "ring-1 ring-white/35 hover:border-white/60 hover:shadow-md",
                                 ].join(" ")}
                                 aria-label={key}
                               >
@@ -285,7 +335,7 @@ export function MessageModal({
                                     className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgba(25,50,80,0.16)]"
                                   />
                                 </span>
-                              </button>
+                              </motion.button>
                             )
                           )}
                     </div>
@@ -300,7 +350,7 @@ export function MessageModal({
                     onChange={(e) => setSenderName(e.target.value)}
                     placeholder="예) 산타요정"
                     maxLength={20}
-                    className="mt-2 w-full rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-slate-800 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] outline-none placeholder:text-slate-500 focus:border-white/70 focus:ring-2 focus:ring-skyPastel-300/50"
+                    className="mt-2 w-full rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-slate-800 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] outline-none placeholder:text-slate-500 transition-all duration-200 focus:border-white/70 focus:ring-2 focus:ring-skyPastel-300/50 focus:shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_16px_30px_rgba(25,50,80,0.15)] focus:bg-white/55"
                   />
                 </div>
                 <div>
@@ -309,11 +359,18 @@ export function MessageModal({
                       <label className="text-sm font-extrabold text-slate-700">
                         질문
                       </label>
-                      <div className="mt-2 rounded-3xl border border-white/50 bg-white/45 px-4 py-3 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)]">
-                        <div className="text-base font-extrabold leading-relaxed text-slate-800">
-                          {getOrnamentQuestion(itemDesign, hostName).question}
+                      {ornamentQuestion ? (
+                        <div className="mt-2 rounded-3xl border border-white/50 bg-white/45 px-4 py-3 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)]">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="text-base font-extrabold leading-relaxed text-slate-800 flex-1">
+                              {ornamentQuestion.question}
+                            </div>
+                            <span className="flex-shrink-0 rounded-full bg-slate-200/60 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                              {CATEGORY_LABELS[ornamentQuestion.category]}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
 
                       <label className="mt-4 block text-sm font-extrabold text-slate-700">
                         답변
@@ -334,7 +391,7 @@ export function MessageModal({
                     }
                     maxLength={200}
                     rows={4}
-                    className="mt-2 w-full resize-none rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-slate-800 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] outline-none placeholder:text-slate-500 focus:border-white/70 focus:ring-2 focus:ring-skyPastel-300/50"
+                    className="mt-2 w-full resize-none rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-slate-800 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] outline-none placeholder:text-slate-500 transition-all duration-200 focus:border-white/70 focus:ring-2 focus:ring-skyPastel-300/50 focus:shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_16px_30px_rgba(25,50,80,0.15)] focus:bg-white/55"
                   />
                   <div className="mt-1 text-right text-xs font-semibold text-slate-500">
                     {content.trim().length}/200
@@ -351,14 +408,24 @@ export function MessageModal({
                     type="button"
                     onClick={handleSubmit}
                     disabled={!canSubmit}
-                    whileHover={canSubmit ? { y: -1 } : undefined}
-                    whileTap={canSubmit ? { y: 1, scale: 0.99 } : undefined}
+                    whileHover={
+                      canSubmit
+                        ? {
+                            y: -2,
+                            scale: 1.01,
+                            boxShadow: "0 20px 40px rgba(34, 139, 98, 0.3)",
+                          }
+                        : undefined
+                    }
+                    whileTap={canSubmit ? { y: 0, scale: 0.98 } : undefined}
+                    transition={{ type: "spring", stiffness: 400, damping: 25 }}
                     className={[
                       "relative w-full select-none rounded-clay px-7 py-4 text-lg font-extrabold tracking-tight text-white",
                       "bg-gradient-to-b from-christmas-green to-[#239B62]",
-                      "shadow-clay shadow-clayInset ring-1 ring-white/35 transition-[transform,filter,opacity] duration-150 ease-out",
-                      "active:shadow-clayPressed active:translate-y-[1px]",
-                      canSubmit ? "opacity-100" : "opacity-60",
+                      "shadow-clay shadow-clayInset ring-1 ring-white/35 transition-all duration-200 ease-out",
+                      canSubmit
+                        ? "opacity-100 cursor-pointer"
+                        : "opacity-60 cursor-not-allowed",
                     ].join(" ")}
                   >
                     <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />

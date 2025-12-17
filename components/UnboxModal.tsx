@@ -6,7 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { MessageRow } from "@/utils/supabase";
 import type { ItemType } from "@/utils/supabase";
 import { resolveItemFileBase } from "@/utils/itemAssets";
-import { getOrnamentQuestion } from "@/utils/ornamentQuestions";
+import {
+  getOrnamentQuestion,
+  CATEGORY_LABELS,
+} from "@/utils/ornamentQuestions";
 
 type Props = {
   open: boolean;
@@ -31,8 +34,12 @@ export function UnboxModal({
 
   const ornamentQ = useMemo(() => {
     if (itemType !== "ornament") return null;
-    return getOrnamentQuestion(message?.item_design ?? "sock", hostName);
-  }, [itemType, message?.item_design, hostName]);
+    return getOrnamentQuestion(
+      message?.item_design ?? "sock",
+      hostName,
+      message?.id ? String(message.id) : undefined
+    );
+  }, [itemType, message?.item_design, message?.id, hostName]);
 
   const itemSrc = useMemo(() => {
     const fileBase = resolveItemFileBase({
@@ -293,8 +300,13 @@ export function UnboxModal({
 
                         {itemType === "ornament" && ornamentQ ? (
                           <div className="mt-4 rounded-3xl border border-white/45 bg-white/45 p-4 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_16px_26px_rgba(25,50,80,0.10)]">
-                            <div className="text-[15px] font-extrabold leading-relaxed text-slate-800">
-                              {ornamentQ.question}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="text-[15px] font-extrabold leading-relaxed text-slate-800 flex-1">
+                                {ornamentQ.question}
+                              </div>
+                              <span className="flex-shrink-0 rounded-full bg-slate-200/60 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                {CATEGORY_LABELS[ornamentQ.category]}
+                              </span>
                             </div>
                           </div>
                         ) : null}
