@@ -332,45 +332,26 @@ export default function Home() {
 
   // 첫 방문: host profile 없으면 온보딩
   useEffect(() => {
-    // 게스트는 온보딩 스킵 (URL에 ?tree=... 파라미터가 있고 내 트리가 아닌 경우)
-    if (treeId && !isOwner) return;
+    // treeId가 있으면 Supabase에서 트리 정보를 로드하므로 온보딩 스킵
+    // (게스트든 오너든 이미 트리가 존재하는 경우이므로 온보딩 불필요)
+    if (treeId) return;
 
-    // treeId가 null이고 localStorage에 my_tree_id도 없으면 → 첫 방문자 → 온보딩 열기
-    const myTreeId = window.localStorage.getItem("my_tree_id");
-    if (!treeId && !myTreeId) {
-      const raw = window.localStorage.getItem("xmas.hostProfile");
-      if (!raw) {
-        setIsOnboardingOpen(true);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(raw) as HostProfile;
-        if (!parsed?.name) {
-          setIsOnboardingOpen(true);
-        }
-      } catch {
-        setIsOnboardingOpen(true);
-      }
+    // treeId가 없으면 → 첫 방문자이거나 트리 생성 전
+    // localStorage에 hostProfile이 있으면 온보딩 스킵, 없으면 온보딩 표시
+    const raw = window.localStorage.getItem("xmas.hostProfile");
+    if (!raw) {
+      setIsOnboardingOpen(true);
       return;
     }
-
-    // 기존 로직: 오너인 경우 hostProfile 확인
-    if (isOwner) {
-      const raw = window.localStorage.getItem("xmas.hostProfile");
-      if (!raw) {
-        setIsOnboardingOpen(true);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(raw) as HostProfile;
-        if (!parsed?.name) {
-          setIsOnboardingOpen(true);
-        }
-      } catch {
+    try {
+      const parsed = JSON.parse(raw) as HostProfile;
+      if (!parsed?.name) {
         setIsOnboardingOpen(true);
       }
+    } catch {
+      setIsOnboardingOpen(true);
     }
-  }, [treeId, isOwner]);
+  }, [treeId]);
 
   useEffect(() => {
     void refetchMessages();

@@ -133,7 +133,7 @@ export function OnboardingModal({
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="예) 예림"
+                    placeholder="예) 귀요미"
                     maxLength={12}
                     className="mt-2 w-full rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-slate-800 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_14px_26px_rgba(25,50,80,0.10)] outline-none placeholder:text-slate-500 focus:border-white/70 focus:ring-2 focus:ring-skyPastel-300/50"
                   />
