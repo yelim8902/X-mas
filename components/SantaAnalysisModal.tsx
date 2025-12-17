@@ -120,15 +120,57 @@ export function SantaAnalysisModal({
         canvas.toBlob((b: Blob | null) => resolve(b), "image/png")
       );
       if (!blob) throw new Error("이미지 생성에 실패했어요.");
+
+      // 모바일: Web Share API 사용
+      if (navigator.share && navigator.canShare) {
+        const file = new File([blob], `santa-letter-${fileSafe}.png`, {
+          type: "image/png",
+        });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `${name}님의 산타 편지`,
+          });
+          onToast?.("공유되었어요!");
+          setIsDownloading(false);
+          return;
+        }
+      }
+
+      // 데스크톱 또는 Web Share API 미지원: download 속성 사용
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `santa-letter-${fileSafe}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-      onToast?.("이미지가 저장되었어요! 인스타에 공유해보세요!");
-    } catch {
-      onToast?.("이미지 저장에 실패했어요. 잠시 후 다시 시도해줘.");
+      
+      // 모바일 Safari 대응: 새 창으로 열기
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        const newWindow = window.open(url, "_blank");
+        if (newWindow) {
+          setTimeout(() => {
+            URL.revokeObjectURL(url);
+          }, 100);
+        }
+        onToast?.("이미지를 길게 눌러 저장하세요!");
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `santa-letter-${fileSafe}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 100);
+        onToast?.("이미지가 저장되었어요! 인스타에 공유해보세요!");
+      }
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.name === "AbortError"
+      ) {
+        // 사용자가 공유를 취소한 경우
+        onToast?.("공유가 취소되었어요.");
+      } else {
+        onToast?.("이미지 저장에 실패했어요. 잠시 후 다시 시도해줘.");
+      }
     } finally {
       setIsDownloading(false);
     }
