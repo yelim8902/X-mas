@@ -990,6 +990,7 @@ export default function Home() {
                         alt={type === "gift" ? "gift" : "ornament"}
                         fill
                         sizes="32px"
+                        loading="lazy"
                         className="object-contain drop-shadow-[2px_4px_6px_rgba(0,0,0,0.25)] pointer-events-none"
                       />
                     </motion.button>

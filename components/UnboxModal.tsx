@@ -137,6 +137,7 @@ export function UnboxModal({
                     alt={itemType === "gift" ? "gift" : "ornament"}
                     fill
                     sizes="128px"
+                    loading="lazy"
                     className="p-4 object-contain drop-shadow-[0_22px_22px_rgba(25,50,80,0.18)]"
                   />
                   <div className="absolute -right-2 -top-2 rounded-full bg-white/55 px-2 py-1 text-[11px] font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md">

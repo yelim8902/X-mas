@@ -214,6 +214,7 @@ export function SantaAnalysisModal({
                   alt="Santa"
                   fill
                   sizes="192px"
+                  loading="lazy"
                   className="p-4 object-contain drop-shadow-[0_22px_22px_rgba(25,50,80,0.18)]"
                 />
               </motion.div>

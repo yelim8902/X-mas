@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 
 export type HostProfile = {
   name: string;
@@ -191,11 +192,14 @@ export function OnboardingModal({
                         <div className="text-xs font-extrabold text-slate-700">
                           {t.label}
                         </div>
-                        <div className="mt-2 aspect-square w-full rounded-2xl bg-white/35 p-2">
-                          <img
+                        <div className="relative mt-2 aspect-square w-full rounded-2xl bg-white/35 p-2">
+                          <Image
                             src={t.previewSrc}
                             alt={t.label}
-                            className="h-full w-full object-contain"
+                            fill
+                            sizes="(max-width: 640px) 100vw, 200px"
+                            loading="lazy"
+                            className="object-contain"
                           />
                         </div>
                       </button>

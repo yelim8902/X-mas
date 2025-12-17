@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import type { GiftColor, ItemType } from "@/utils/supabase";
 import { GIFT_DESIGNS, ORNAMENT_DESIGNS } from "@/utils/itemAssets";
 import {
@@ -295,10 +296,13 @@ export function MessageModal({
                             >
                               <span className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-b from-white/35 to-transparent opacity-80" />
                               <span className="pointer-events-none absolute inset-2">
-                                <img
+                                <Image
                                   src={`/images/${o.fileBase}.png`}
                                   alt={o.key}
-                                  className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgba(25,50,80,0.16)]"
+                                  fill
+                                  sizes="40px"
+                                  loading="lazy"
+                                  className="object-contain drop-shadow-[0_10px_10px_rgba(25,50,80,0.16)]"
                                 />
                               </span>
                             </motion.button>
@@ -329,10 +333,13 @@ export function MessageModal({
                               >
                                 <span className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-b from-white/35 to-transparent opacity-80" />
                                 <span className="pointer-events-none absolute inset-2">
-                                  <img
+                                  <Image
                                     src={`/images/${fileBase}.png`}
                                     alt={key}
-                                    className="h-full w-full object-contain drop-shadow-[0_10px_10px_rgba(25,50,80,0.16)]"
+                                    fill
+                                    sizes="40px"
+                                    loading="lazy"
+                                    className="object-contain drop-shadow-[0_10px_10px_rgba(25,50,80,0.16)]"
                                   />
                                 </span>
                               </motion.button>

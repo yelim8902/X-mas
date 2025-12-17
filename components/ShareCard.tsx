@@ -93,6 +93,7 @@ export const ShareCard = forwardRef<HTMLDivElement, Props>(function ShareCard(
                   alt="santa"
                   fill
                   sizes="140px"
+                  loading="lazy"
                   className="object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.2)]"
                 />
               </div>
