@@ -315,24 +315,47 @@ export default function Home() {
     })();
   }, [treeId, isOwner, loadTreeInfo]);
 
-  // 첫 방문: host profile 없으면 온보딩 (오너만)
+  // 첫 방문: host profile 없으면 온보딩
   useEffect(() => {
-    if (!isOwner) return; // 게스트는 온보딩 스킵
+    // 게스트는 온보딩 스킵 (URL에 ?tree=... 파라미터가 있고 내 트리가 아닌 경우)
+    if (treeId && !isOwner) return;
 
-    const raw = window.localStorage.getItem("xmas.hostProfile");
-    if (!raw) {
-      setIsOnboardingOpen(true);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as HostProfile;
-      if (!parsed?.name) {
+    // treeId가 null이고 localStorage에 my_tree_id도 없으면 → 첫 방문자 → 온보딩 열기
+    const myTreeId = window.localStorage.getItem("my_tree_id");
+    if (!treeId && !myTreeId) {
+      const raw = window.localStorage.getItem("xmas.hostProfile");
+      if (!raw) {
+        setIsOnboardingOpen(true);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as HostProfile;
+        if (!parsed?.name) {
+          setIsOnboardingOpen(true);
+        }
+      } catch {
         setIsOnboardingOpen(true);
       }
-    } catch {
-      setIsOnboardingOpen(true);
+      return;
     }
-  }, [isOwner]);
+
+    // 기존 로직: 오너인 경우 hostProfile 확인
+    if (isOwner) {
+      const raw = window.localStorage.getItem("xmas.hostProfile");
+      if (!raw) {
+        setIsOnboardingOpen(true);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as HostProfile;
+        if (!parsed?.name) {
+          setIsOnboardingOpen(true);
+        }
+      } catch {
+        setIsOnboardingOpen(true);
+      }
+    }
+  }, [treeId, isOwner]);
 
   useEffect(() => {
     void refetchMessages();
