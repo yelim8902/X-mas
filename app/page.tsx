@@ -666,123 +666,123 @@ export default function Home() {
             </div>
 
             {/* Profile edit shortcut */}
-            <div className="mb-3 flex w-full justify-center">
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {isOwner ? (
-                  <motion.button
-                    type="button"
-                    onClick={() => setIsOnboardingOpen(true)}
-                    whileTap={{ scale: 0.98 }}
-                    className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
-                  >
-                    내 트리 정보 수정
-                  </motion.button>
-                ) : null}
-
+            {isOwner ? (
+              <div className="mb-3 flex w-full justify-center">
                 <motion.button
                   type="button"
-                  onClick={() => {
-                    void refetchMessages();
-                    showToast("트리를 새로고침했어요.");
-                  }}
-                  disabled={!treeId}
+                  onClick={() => setIsOnboardingOpen(true)}
                   whileTap={{ scale: 0.98 }}
-                  aria-label="트리 새로고침"
-                  title="트리 새로고침"
-                  className={[
-                    "grid h-10 w-10 place-items-center rounded-full bg-white/35 text-slate-700",
-                    "shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
-                    "transition-[transform,filter] duration-150 ease-out",
-                    treeId ? "opacity-100" : "opacity-60",
-                  ].join(" ")}
+                  className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
                 >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="drop-shadow-[0_6px_10px_rgba(25,50,80,0.10)]"
-                  >
-                    <path
-                      d="M21 12a9 9 0 1 1-2.64-6.36"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M21 3v6h-6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  내 트리 정보 수정
                 </motion.button>
-
-                {isHostMode ? (
-                  <>
-                    <motion.button
-                      type="button"
-                      onClick={() => setIsResetOpen(true)}
-                      whileTap={{ scale: 0.98 }}
-                      className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
-                    >
-                      테스트 데이터 초기화
-                    </motion.button>
-
-                    <motion.button
-                      type="button"
-                      onClick={() => {
-                        // ✅ 새 트리 만들기: tree_id와 owner_token 새로 발급 → localStorage/URL 반영 → 상태 초기화
-                        const params = new URLSearchParams(
-                          window.location.search
-                        );
-                        const nextTree =
-                          typeof crypto !== "undefined" &&
-                          "randomUUID" in crypto
-                            ? crypto.randomUUID()
-                            : String(Date.now());
-                        const nextOwnerToken =
-                          typeof crypto !== "undefined" &&
-                          "randomUUID" in crypto
-                            ? crypto.randomUUID()
-                            : String(Date.now() + Math.random());
-                        window.localStorage.setItem("my_tree_id", nextTree);
-                        window.localStorage.setItem(
-                          "owner_token",
-                          nextOwnerToken
-                        );
-                        params.set("tree", nextTree);
-                        params.set("owner", nextOwnerToken);
-                        const nextUrl = `${
-                          window.location.pathname
-                        }?${params.toString()}`;
-                        window.history.replaceState({}, "", nextUrl);
-
-                        setTreeId(nextTree);
-                        setIsOwner(true);
-                        setMessages([]);
-                        setSelectedMessage(null);
-                        setIsUnboxOpen(false);
-                        setLastGiftId(null);
-                        showToast("새 트리를 만들었어요! 링크를 공유해봐요.");
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
-                    >
-                      새 트리 만들기
-                    </motion.button>
-                  </>
-                ) : null}
               </div>
-            </div>
+            ) : null}
 
             {/* Main Container (relative): Tree + Gifts(absolute) + Santa(absolute) */}
             <div
               className="relative overflow-hidden rounded-[44px] border border-white/40 bg-white/30 p-4 shadow-[0_30px_70px_rgba(25,50,80,0.16)] backdrop-blur-lg sm:p-6"
               ref={treeContainerRef}
             >
+              {/* 새로고침 버튼 - 트리 카드 우측 상단 */}
+              <motion.button
+                type="button"
+                onClick={() => {
+                  void refetchMessages();
+                  showToast("트리를 새로고침했어요.");
+                }}
+                disabled={!treeId}
+                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.05 }}
+                aria-label="트리 새로고침"
+                title="트리 새로고침"
+                className={[
+                  "absolute top-4 right-4 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/35 text-slate-700",
+                  "shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
+                  "transition-[transform,filter] duration-150 ease-out",
+                  treeId ? "opacity-100" : "opacity-60",
+                ].join(" ")}
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="drop-shadow-[0_6px_10px_rgba(25,50,80,0.10)]"
+                >
+                  <path
+                    d="M21 12a9 9 0 1 1-2.64-6.36"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M21 3v6h-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </motion.button>
+
+              {/* Host Mode 디버그 버튼들 */}
+              {isHostMode ? (
+                <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap gap-2 sm:left-auto sm:right-4 sm:w-auto">
+                  <motion.button
+                    type="button"
+                    onClick={() => setIsResetOpen(true)}
+                    whileTap={{ scale: 0.98 }}
+                    className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
+                  >
+                    테스트 데이터 초기화
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      // ✅ 새 트리 만들기: tree_id와 owner_token 새로 발급 → localStorage/URL 반영 → 상태 초기화
+                      const params = new URLSearchParams(
+                        window.location.search
+                      );
+                      const nextTree =
+                        typeof crypto !== "undefined" &&
+                        "randomUUID" in crypto
+                          ? crypto.randomUUID()
+                          : String(Date.now());
+                      const nextOwnerToken =
+                        typeof crypto !== "undefined" &&
+                        "randomUUID" in crypto
+                          ? crypto.randomUUID()
+                          : String(Date.now() + Math.random());
+                      window.localStorage.setItem("my_tree_id", nextTree);
+                      window.localStorage.setItem(
+                        "owner_token",
+                        nextOwnerToken
+                      );
+                      params.set("tree", nextTree);
+                      params.set("owner", nextOwnerToken);
+                      const nextUrl = `${
+                        window.location.pathname
+                      }?${params.toString()}`;
+                      window.history.replaceState({}, "", nextUrl);
+
+                      setTreeId(nextTree);
+                      setIsOwner(true);
+                      setMessages([]);
+                      setSelectedMessage(null);
+                      setIsUnboxOpen(false);
+                      setLastGiftId(null);
+                      showToast("새 트리를 만들었어요! 링크를 공유해봐요.");
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                    className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
+                  >
+                    새 트리 만들기
+                  </motion.button>
+                </div>
+              ) : null}
               <div className="relative aspect-[1/1.05] w-full">
                 <Image
                   src={treeImageSrc}
