@@ -408,6 +408,68 @@ export default function Home() {
     }
   }, [treeId]);
 
+  // 드래그 핸들러 최적화
+  const handleDragStart = useCallback((id: string) => {
+    setDraggingItemId(id);
+    setHoveredItemId(id);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    async (id: string, m: MessageRow, event: any) => {
+      if (!treeItemsContainerRef.current || !treeId) {
+        setDraggingItemId(null);
+        return;
+      }
+
+      const rect = treeItemsContainerRef.current.getBoundingClientRect();
+      const itemElement = event.target as HTMLElement;
+
+      requestAnimationFrame(() => {
+        const itemRect = itemElement.getBoundingClientRect();
+        const itemCenterX = itemRect.left + itemRect.width / 2;
+        const itemCenterY = itemRect.top + itemRect.height / 2;
+        const relativeX = itemCenterX - rect.left;
+        const relativeY = itemCenterY - rect.top;
+        const xPercent = Math.max(0, Math.min(100, (relativeX / rect.width) * 100));
+        const yPercent = Math.max(0, Math.min(100, (relativeY / rect.height) * 100));
+
+        void (async () => {
+          try {
+            const { error } = await supabase
+              .from("messages")
+              .update({ position_x: xPercent, position_y: yPercent })
+              .eq("id", m.id);
+
+            if (error) throw error;
+
+            setMessages((prev) =>
+              prev.map((msg) =>
+                String(msg.id) === id
+                  ? { ...msg, position_x: xPercent, position_y: yPercent }
+                  : msg
+              )
+            );
+          } catch (e) {
+            console.error("위치 저장 실패:", e);
+            showToast("위치 저장에 실패했어요.");
+          } finally {
+            setDraggingItemId(null);
+          }
+        })();
+      });
+    },
+    [treeId, showToast]
+  );
+
+  // 호버 핸들러 최적화
+  const handleItemHoverStart = useCallback((id: string) => {
+    setHoveredItemId(id);
+  }, []);
+
+  const handleItemHoverEnd = useCallback(() => {
+    setHoveredItemId(null);
+  }, []);
+
   useEffect(() => {
     if (!treeId) return;
     const channel = supabase
@@ -747,13 +809,11 @@ export default function Home() {
                         window.location.search
                       );
                       const nextTree =
-                        typeof crypto !== "undefined" &&
-                        "randomUUID" in crypto
+                        typeof crypto !== "undefined" && "randomUUID" in crypto
                           ? crypto.randomUUID()
                           : String(Date.now());
                       const nextOwnerToken =
-                        typeof crypto !== "undefined" &&
-                        "randomUUID" in crypto
+                        typeof crypto !== "undefined" && "randomUUID" in crypto
                           ? crypto.randomUUID()
                           : String(Date.now() + Math.random());
                       window.localStorage.setItem("my_tree_id", nextTree);
@@ -856,79 +916,8 @@ export default function Home() {
                       dragMomentum={false}
                       dragConstraints={treeItemsContainerRef}
                       dragElastic={0}
-                      onDragStart={() => {
-                        setDraggingItemId(id);
-                        setHoveredItemId(id);
-                      }}
-                      onDragEnd={async (event, info) => {
-                        if (!treeItemsContainerRef.current || !treeId) {
-                          setDraggingItemId(null);
-                          return;
-                        }
-
-                        // 드래그 후 최종 위치를 계산 (아이템의 중심점 기준)
-                        const rect =
-                          treeItemsContainerRef.current.getBoundingClientRect();
-                        const itemElement = event.target as HTMLElement;
-
-                        // 다음 프레임에서 계산 (드래그 애니메이션이 완료된 후)
-                        requestAnimationFrame(() => {
-                          const itemRect = itemElement.getBoundingClientRect();
-
-                          // 아이템의 중심점 계산
-                          const itemCenterX =
-                            itemRect.left + itemRect.width / 2;
-                          const itemCenterY =
-                            itemRect.top + itemRect.height / 2;
-
-                          // 컨테이너 기준 상대 위치
-                          const relativeX = itemCenterX - rect.left;
-                          const relativeY = itemCenterY - rect.top;
-
-                          // 퍼센트로 변환 (0~100% 범위로 제한)
-                          const xPercent = Math.max(
-                            0,
-                            Math.min(100, (relativeX / rect.width) * 100)
-                          );
-                          const yPercent = Math.max(
-                            0,
-                            Math.min(100, (relativeY / rect.height) * 100)
-                          );
-
-                          // DB에 위치 저장
-                          void (async () => {
-                            try {
-                              const { error } = await supabase
-                                .from("messages")
-                                .update({
-                                  position_x: xPercent,
-                                  position_y: yPercent,
-                                })
-                                .eq("id", m.id);
-
-                              if (error) throw error;
-
-                              // 메시지 목록 업데이트
-                              setMessages((prev) =>
-                                prev.map((msg) =>
-                                  String(msg.id) === id
-                                    ? {
-                                        ...msg,
-                                        position_x: xPercent,
-                                        position_y: yPercent,
-                                      }
-                                    : msg
-                                )
-                              );
-                            } catch (e) {
-                              console.error("위치 저장 실패:", e);
-                              showToast("위치 저장에 실패했어요.");
-                            } finally {
-                              setDraggingItemId(null);
-                            }
-                          })();
-                        });
-                      }}
+                      onDragStart={() => handleDragStart(id)}
+                      onDragEnd={(event) => handleDragEnd(id, m, event)}
                       className="absolute cursor-grab active:cursor-grabbing select-none"
                       style={{
                         left: `${leftPct}%`,
@@ -966,14 +955,10 @@ export default function Home() {
                         setIsUnboxOpen(true);
                       }}
                       onHoverStart={() => {
-                        if (!isDragging) setHoveredItemId(id);
+                        if (!isDragging) handleItemHoverStart(id);
                       }}
                       onHoverEnd={() => {
-                        if (!isDragging) {
-                          setHoveredItemId((prev) =>
-                            prev === id ? null : prev
-                          );
-                        }
+                        if (!isDragging) handleItemHoverEnd();
                       }}
                       whileHover={
                         !isDragging

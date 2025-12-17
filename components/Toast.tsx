@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 export type ToastData = {
@@ -7,7 +8,7 @@ export type ToastData = {
   message: string;
 };
 
-export function Toast({ open, message }: ToastData) {
+export const Toast = memo(function Toast({ open, message }: ToastData) {
   return (
     <AnimatePresence>
       {open ? (
@@ -27,4 +28,4 @@ export function Toast({ open, message }: ToastData) {
       ) : null}
     </AnimatePresence>
   );
-}
+});

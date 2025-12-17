@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 type Props = {
@@ -13,7 +14,7 @@ type Props = {
   onCancel: () => void;
 };
 
-export function ConfirmModal({
+export const ConfirmModal = memo(function ConfirmModal({
   open,
   title,
   description,
@@ -89,6 +90,6 @@ export function ConfirmModal({
       ) : null}
     </AnimatePresence>
   );
-}
+});
 
 
