@@ -85,21 +85,21 @@ export function OnboardingModal({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[1100] flex items-center justify-center px-5"
+          className="fixed inset-0 z-[1100] flex items-center justify-center px-5 py-4 overflow-y-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           aria-modal="true"
           role="dialog"
         >
-          <div className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm" />
 
           <motion.div
             initial={{ y: 18, scale: 0.98, opacity: 0 }}
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 12, scale: 0.98, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
-            className="relative w-full max-w-xl overflow-hidden rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8"
+            className="relative w-full max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8 my-auto"
           >
             <div className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-b from-white/45 to-transparent opacity-70" />
             <div className="relative">

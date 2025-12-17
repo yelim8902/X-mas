@@ -64,7 +64,7 @@ export function UnboxModal({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[1000] flex items-center justify-center px-5"
+          className="fixed inset-0 z-[1000] flex items-center justify-center px-5 py-4 overflow-y-auto"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -75,7 +75,7 @@ export function UnboxModal({
             type="button"
             aria-label="close unbox modal"
             onClick={onClose}
-            className="absolute inset-0 cursor-default bg-slate-900/35 backdrop-blur-sm"
+            className="fixed inset-0 cursor-default bg-slate-900/35 backdrop-blur-sm"
           />
 
           <motion.div
@@ -83,7 +83,7 @@ export function UnboxModal({
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 10, scale: 0.98, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
-            className="relative w-full max-w-lg overflow-hidden rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_80px_rgba(25,50,80,0.20)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8"
+            className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_80px_rgba(25,50,80,0.20)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8 my-auto"
           >
             <div className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-b from-white/45 to-transparent opacity-70" />
 
