@@ -202,23 +202,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // ✅ tree id: URL (?tree=...) 기준, 없으면 (주인이라면) localStorage의 my_tree_id로 보정
+    // ✅ 오너/게스트 구분 로직: URL의 owner 토큰과 localStorage의 owner_token 비교
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
+    const urlOwnerToken = params.get("owner");
+    const storedOwnerToken = window.localStorage.getItem("owner_token");
     const myTree = window.localStorage.getItem("my_tree_id");
 
     if (urlTree) {
       // URL에 tree 파라미터가 있는 경우
       setTreeId(urlTree);
-      // localStorage에 저장된 my_tree_id와 URL의 tree 파라미터가 같으면 오너, 아니면 게스트
-      const isMyTree = Boolean(myTree && myTree === urlTree);
-      setIsOwner(isMyTree);
+
+      // 오너 판단: URL에 owner 토큰이 있고, localStorage의 owner_token과 일치하며, tree_id도 일치하는 경우
+      const isOwnerTokenValid = Boolean(
+        urlOwnerToken &&
+          storedOwnerToken &&
+          urlOwnerToken === storedOwnerToken &&
+          myTree === urlTree
+      );
+      setIsOwner(isOwnerTokenValid);
       return;
     }
 
-    if (myTree) {
-      // 주인: URL에 tree 파라미터가 없지만 localStorage에 my_tree_id가 있으면 내 트리로 자동 진입
+    if (myTree && storedOwnerToken) {
+      // 주인: URL에 tree 파라미터가 없지만 localStorage에 my_tree_id와 owner_token이 있으면 오너용 링크로 자동 진입
       params.set("tree", myTree);
+      params.set("owner", storedOwnerToken);
       const next = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState({}, "", next);
       setTreeId(myTree);
@@ -725,7 +734,7 @@ export default function Home() {
                     <motion.button
                       type="button"
                       onClick={() => {
-                        // ✅ 새 트리 만들기: tree_id 새로 발급 → localStorage/URL 반영 → 상태 초기화
+                        // ✅ 새 트리 만들기: tree_id와 owner_token 새로 발급 → localStorage/URL 반영 → 상태 초기화
                         const params = new URLSearchParams(
                           window.location.search
                         );
@@ -734,8 +743,15 @@ export default function Home() {
                           "randomUUID" in crypto
                             ? crypto.randomUUID()
                             : String(Date.now());
+                        const nextOwnerToken =
+                          typeof crypto !== "undefined" &&
+                          "randomUUID" in crypto
+                            ? crypto.randomUUID()
+                            : String(Date.now() + Math.random());
                         window.localStorage.setItem("my_tree_id", nextTree);
+                        window.localStorage.setItem("owner_token", nextOwnerToken);
                         params.set("tree", nextTree);
+                        params.set("owner", nextOwnerToken);
                         const nextUrl = `${
                           window.location.pathname
                         }?${params.toString()}`;
@@ -1012,7 +1028,13 @@ export default function Home() {
                 type="button"
                 onClick={async () => {
                   try {
-                    await navigator.clipboard.writeText(window.location.href);
+                    // 게스트용 링크만 복사 (owner 토큰 제외)
+                    const params = new URLSearchParams(window.location.search);
+                    params.delete("owner"); // owner 토큰 제거
+                    const guestUrl = `${window.location.origin}${
+                      window.location.pathname
+                    }?${params.toString()}`;
+                    await navigator.clipboard.writeText(guestUrl);
                     showToast("링크가 복사되었어요! 친구들에게 공유하세요.");
                   } catch {
                     showToast("링크 복사에 실패했어요. 주소를 직접 복사해줘.");
@@ -1212,7 +1234,7 @@ export default function Home() {
             "xmas.hostProfile",
             JSON.stringify(profile)
           );
-          // ✅ 트리 생성(Create): tree_id 생성 후 localStorage 저장 + URL에 반영
+          // ✅ 트리 생성(Create): tree_id와 owner_token 생성 후 localStorage 저장 + URL에 반영
           const params = new URLSearchParams(window.location.search);
           let myTree = window.localStorage.getItem("my_tree_id");
           if (!myTree) {
@@ -1222,7 +1244,20 @@ export default function Home() {
                 : String(Date.now());
             window.localStorage.setItem("my_tree_id", myTree);
           }
+
+          // 오너 토큰 생성 (오너 전용 링크용)
+          let ownerToken = window.localStorage.getItem("owner_token");
+          if (!ownerToken) {
+            ownerToken =
+              typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : String(Date.now() + Math.random());
+            window.localStorage.setItem("owner_token", ownerToken);
+          }
+
+          // 오너용 링크로 설정 (tree + owner 토큰)
           params.set("tree", myTree);
+          params.set("owner", ownerToken);
           const next = `${window.location.pathname}?${params.toString()}`;
           window.history.replaceState({}, "", next);
           setTreeId(myTree);
