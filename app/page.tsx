@@ -202,21 +202,42 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // ✅ URL 파라미터만으로 treeId와 isOwner 결정 (단순화)
+    // ✅ 오너/게스트 구분 로직: URL의 owner 토큰과 localStorage의 owner_token 비교
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
-    const urlOwner = params.get("owner");
+    const urlOwnerToken = params.get("owner");
+    const storedOwnerToken = window.localStorage.getItem("owner_token");
+    const myTree = window.localStorage.getItem("my_tree_id");
 
     if (urlTree) {
       // URL에 tree 파라미터가 있는 경우
       setTreeId(urlTree);
-      // URL에 owner 파라미터가 있으면 오너, 없으면 게스트
-      setIsOwner(Boolean(urlOwner));
-    } else {
-      // URL에 tree 파라미터가 없으면 → 온보딩 화면 (트리 생성 전)
-      setTreeId(null);
-      setIsOwner(false);
+
+      // 오너 판단: URL에 owner 토큰이 있고, localStorage의 owner_token과 일치하며, tree_id도 일치하는 경우
+      const isOwnerTokenValid = Boolean(
+        urlOwnerToken &&
+          storedOwnerToken &&
+          urlOwnerToken === storedOwnerToken &&
+          myTree === urlTree
+      );
+      setIsOwner(isOwnerTokenValid);
+      return;
     }
+
+    if (myTree && storedOwnerToken) {
+      // 주인: URL에 tree 파라미터가 없지만 localStorage에 my_tree_id와 owner_token이 있으면 오너용 링크로 자동 진입
+      params.set("tree", myTree);
+      params.set("owner", storedOwnerToken);
+      const next = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, "", next);
+      setTreeId(myTree);
+      setIsOwner(true);
+      return;
+    }
+
+    // 아직 트리 생성 전(최초 방문) - 온보딩 완료 시 생성됨
+    setTreeId(null);
+    setIsOwner(false);
   }, []);
 
   // 트리 정보를 Supabase에서 로드하는 함수
@@ -309,18 +330,47 @@ export default function Home() {
     })();
   }, [treeId, isOwner, loadTreeInfo]);
 
-  // 온보딩 화면 표시: URL에 tree 파라미터가 없으면 온보딩
+  // 첫 방문: host profile 없으면 온보딩
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlTree = params.get("tree");
+    // 게스트는 온보딩 스킵 (URL에 ?tree=... 파라미터가 있고 내 트리가 아닌 경우)
+    if (treeId && !isOwner) return;
 
-    // URL에 tree 파라미터가 없으면 온보딩 표시, 있으면 온보딩 닫기
-    if (!urlTree) {
-      setIsOnboardingOpen(true);
-    } else {
-      setIsOnboardingOpen(false);
+    // treeId가 null이고 localStorage에 my_tree_id도 없으면 → 첫 방문자 → 온보딩 열기
+    const myTreeId = window.localStorage.getItem("my_tree_id");
+    if (!treeId && !myTreeId) {
+      const raw = window.localStorage.getItem("xmas.hostProfile");
+      if (!raw) {
+        setIsOnboardingOpen(true);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as HostProfile;
+        if (!parsed?.name) {
+          setIsOnboardingOpen(true);
+        }
+      } catch {
+        setIsOnboardingOpen(true);
+      }
+      return;
     }
-  }, [treeId]); // treeId가 변경되면 다시 확인
+
+    // 기존 로직: 오너인 경우 hostProfile 확인
+    if (isOwner) {
+      const raw = window.localStorage.getItem("xmas.hostProfile");
+      if (!raw) {
+        setIsOnboardingOpen(true);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as HostProfile;
+        if (!parsed?.name) {
+          setIsOnboardingOpen(true);
+        }
+      } catch {
+        setIsOnboardingOpen(true);
+      }
+    }
+  }, [treeId, isOwner]);
 
   useEffect(() => {
     void refetchMessages();
