@@ -34,4 +34,17 @@ export type MessageRow = {
   item_type?: ItemType | null;
   item_design?: ItemDesign | null;
   question_category?: string | null;
+  position_x?: number | null; // 0~100%
+  position_y?: number | null; // 0~100%
+  is_read?: boolean | null;
+};
+
+export type TreeRow = {
+  id: string; // tree_id와 동일
+  host_name: string;
+  host_gender: "female" | "male" | "nonbinary" | "other";
+  host_age: number;
+  tree_style: string;
+  created_at: string;
+  updated_at: string;
 };

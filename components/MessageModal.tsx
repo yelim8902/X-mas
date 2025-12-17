@@ -313,11 +313,6 @@ export function MessageModal({
                         <div className="text-base font-extrabold leading-relaxed text-slate-800">
                           {getOrnamentQuestion(itemDesign, hostName).question}
                         </div>
-                        <div className="mt-2 flex justify-end">
-                          <span className="rounded-full bg-white/55 px-3 py-1 text-[11px] font-extrabold text-slate-700 ring-1 ring-white/50">
-                            {getOrnamentQuestion(itemDesign, hostName).category}
-                          </span>
-                        </div>
                       </div>
 
                       <label className="mt-4 block text-sm font-extrabold text-slate-700">
@@ -345,7 +340,7 @@ export function MessageModal({
                     {content.trim().length}/200
                   </div>
                 </div>
-                고ㅕ{" "}
+
                 {error ? (
                   <div className="rounded-3xl border border-white/50 bg-white/45 px-4 py-3 text-sm font-bold text-christmas-red shadow-[inset_0_2px_0_rgba(255,255,255,0.55)]">
                     {error}

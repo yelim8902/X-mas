@@ -293,13 +293,7 @@ export function UnboxModal({
 
                         {itemType === "ornament" && ornamentQ ? (
                           <div className="mt-4 rounded-3xl border border-white/45 bg-white/45 p-4 shadow-[inset_0_2px_0_rgba(255,255,255,0.6),_0_16px_26px_rgba(25,50,80,0.10)]">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="text-xs font-extrabold text-slate-600" />
-                              <div className="rounded-full bg-white/60 px-2.5 py-1 text-[11px] font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55)] ring-1 ring-white/45">
-                                {ornamentQ.category}
-                              </div>
-                            </div>
-                            <div className="mt-1 text-[15px] font-extrabold leading-relaxed text-slate-800">
+                            <div className="text-[15px] font-extrabold leading-relaxed text-slate-800">
                               {ornamentQ.question}
                             </div>
                           </div>

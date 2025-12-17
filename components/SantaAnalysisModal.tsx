@@ -14,8 +14,7 @@ type Props = {
   gift?: string;
   raw?: string;
   hostName?: string;
-  treeSrc?: string;
-  items?: import("@/utils/supabase").MessageRow[];
+  treeContainerRef?: React.RefObject<HTMLDivElement>;
   onToast?: (message: string) => void;
 };
 
@@ -45,12 +44,12 @@ export function SantaAnalysisModal({
   gift,
   raw,
   hostName,
-  treeSrc,
-  items,
+  treeContainerRef,
   onToast,
 }: Props) {
   const shareRef = useRef<HTMLDivElement | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [treeSnapshot, setTreeSnapshot] = useState<string>("");
   const finalText = useMemo(() => {
     if (loading) return "산타가 메시지들을 읽고 있어요... 잠시만 기다려줘!";
     if (summary && gift) {
@@ -72,6 +71,37 @@ export function SantaAnalysisModal({
   }, [loading, summary, gift, raw, hostName]);
 
   const typed = useTypewriter(finalText, open, 14);
+
+  // 트리 컨테이너 스냅샷 촬영
+  useEffect(() => {
+    if (open && treeContainerRef?.current && summary && gift) {
+      // 모달이 열리고 트리 스냅샷이 필요할 때
+      const captureTreeSnapshot = async () => {
+        try {
+          const element = treeContainerRef.current!;
+          const canvas = await html2canvas(element, {
+            backgroundColor: null,
+            scale: 2,
+            logging: false,
+            useCORS: true,
+            allowTaint: false,
+            removeContainer: false,
+          });
+          const dataUrl = canvas.toDataURL("image/png", 0.95);
+          setTreeSnapshot(dataUrl);
+        } catch (error) {
+          console.error("트리 스냅샷 촬영 실패:", error);
+          setTreeSnapshot("");
+        }
+      };
+
+      // 약간의 딜레이 후 캡처 (렌더링 완료 보장)
+      const timer = setTimeout(captureTreeSnapshot, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setTreeSnapshot("");
+    }
+  }, [open, treeContainerRef, summary, gift]);
 
   async function downloadShareImage() {
     if (!shareRef.current) return;
@@ -154,15 +184,14 @@ export function SantaAnalysisModal({
             </div>
 
             {/* Hidden/offscreen Share Card for download (must be rendered, not display:none) */}
-            {summary && gift && treeSrc ? (
+            {summary && gift && treeSnapshot ? (
               <div className="fixed left-[-9999px] top-0 opacity-0">
                 <ShareCard
                   ref={shareRef}
                   hostName={(hostName ?? "주인공").trim() || "주인공"}
-                  treeSrc={treeSrc}
+                  treeSnapshot={treeSnapshot}
                   summary={summary}
                   giftKeyword={gift}
-                  items={items ?? []}
                 />
               </div>
             ) : null}
@@ -237,11 +266,11 @@ export function SantaAnalysisModal({
               <motion.button
                 type="button"
                 disabled={
-                  loading || !summary || !gift || !treeSrc || isDownloading
+                  loading || !summary || !gift || !treeSnapshot || isDownloading
                 }
                 onClick={() => void downloadShareImage()}
                 whileTap={
-                  loading || !summary || !gift || !treeSrc || isDownloading
+                  loading || !summary || !gift || !treeSnapshot || isDownloading
                     ? undefined
                     : { scale: 0.98 }
                 }
@@ -249,7 +278,7 @@ export function SantaAnalysisModal({
                   "rounded-2xl px-4 py-3 text-sm font-extrabold text-white",
                   "bg-gradient-to-b from-christmas-green to-[#239B62]",
                   "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                  loading || !summary || !gift || !treeSrc || isDownloading
+                  loading || !summary || !gift || !treeSnapshot || isDownloading
                     ? "opacity-60"
                     : "opacity-100",
                 ].join(" ")}
