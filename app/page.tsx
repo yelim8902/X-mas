@@ -430,8 +430,14 @@ export default function Home() {
         const itemCenterY = itemRect.top + itemRect.height / 2;
         const relativeX = itemCenterX - rect.left;
         const relativeY = itemCenterY - rect.top;
-        const xPercent = Math.max(0, Math.min(100, (relativeX / rect.width) * 100));
-        const yPercent = Math.max(0, Math.min(100, (relativeY / rect.height) * 100));
+        const xPercent = Math.max(
+          0,
+          Math.min(100, (relativeX / rect.width) * 100)
+        );
+        const yPercent = Math.max(
+          0,
+          Math.min(100, (relativeY / rect.height) * 100)
+        );
 
         void (async () => {
           try {
