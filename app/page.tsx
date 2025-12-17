@@ -208,13 +208,16 @@ export default function Home() {
     const myTree = window.localStorage.getItem("my_tree_id");
 
     if (urlTree) {
+      // URL에 tree 파라미터가 있는 경우
       setTreeId(urlTree);
-      setIsOwner(Boolean(myTree && myTree === urlTree));
+      // localStorage에 저장된 my_tree_id와 URL의 tree 파라미터가 같으면 오너, 아니면 게스트
+      const isMyTree = Boolean(myTree && myTree === urlTree);
+      setIsOwner(isMyTree);
       return;
     }
 
     if (myTree) {
-      // 주인: 내 트리로 자동 진입
+      // 주인: URL에 tree 파라미터가 없지만 localStorage에 my_tree_id가 있으면 내 트리로 자동 진입
       params.set("tree", myTree);
       const next = `${window.location.pathname}?${params.toString()}`;
       window.history.replaceState({}, "", next);
@@ -254,7 +257,7 @@ export default function Home() {
   // treeId가 변경될 때마다 트리 정보 로드
   useEffect(() => {
     if (!treeId) {
-      // treeId가 없으면 localStorage에서 로드 (오너의 경우)
+      // treeId가 없으면 localStorage에서 로드 (오너의 경우, 최초 방문 전)
       const raw = window.localStorage.getItem("xmas.hostProfile");
       if (raw) {
         try {
@@ -283,13 +286,14 @@ export default function Home() {
       return;
     }
 
-    // treeId가 있으면 Supabase에서 트리 정보 로드
+    // treeId가 있으면 Supabase에서 트리 정보 로드 (오너/게스트 모두)
     void (async () => {
       const treeInfo = await loadTreeInfo(treeId);
       if (treeInfo) {
+        // Supabase에서 트리 정보를 성공적으로 로드한 경우
         setHost(treeInfo);
       } else {
-        // 트리 정보가 없으면 localStorage에서 로드 (오너의 경우)
+        // 트리 정보가 Supabase에 없으면 localStorage에서 로드 (오너의 경우에만)
         if (isOwner) {
           const raw = window.localStorage.getItem("xmas.hostProfile");
           if (raw) {
@@ -311,6 +315,8 @@ export default function Home() {
             }
           }
         }
+        // 게스트의 경우: Supabase에 트리 정보가 없으면 host를 null로 두고 계속 진행
+        // (트리가 존재하지 않는 경우이거나, 아직 생성되지 않은 경우)
       }
     })();
   }, [treeId, isOwner, loadTreeInfo]);
