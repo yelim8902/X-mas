@@ -1528,7 +1528,10 @@ export default function Home() {
                   <motion.button
                     type="button"
                     onClick={() => {
-                      setComposeDefaults({ itemType: "gift", giftColor: "red" });
+                      setComposeDefaults({
+                        itemType: "gift",
+                        giftColor: "red",
+                      });
                       setOpen(true);
                     }}
                     disabled={!host || isOnboardingOpen}
