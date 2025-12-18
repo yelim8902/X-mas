@@ -100,16 +100,16 @@ export function OnboardingModal({
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 12, scale: 0.98, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
-            className="relative w-full max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8 my-auto"
+            className="relative w-full max-w-xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-4 sm:p-6 md:p-8 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 my-auto"
           >
             <div className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-b from-white/45 to-transparent opacity-70" />
             <div className="relative">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xl font-extrabold tracking-tight text-slate-800">
+                <div className="flex-1 min-w-0">
+                  <p className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">
                     내 크리스마스 트리 만들기
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-slate-600">
+                  <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-600">
                     처음 한 번만 입력하면, 내 트리가 예쁘게 세팅돼.
                   </p>
                 </div>
@@ -118,16 +118,29 @@ export function OnboardingModal({
                     type="button"
                     onClick={onClose}
                     whileTap={{ scale: 0.98 }}
-                    className="rounded-2xl bg-white/40 px-3 py-2 text-sm font-bold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45"
+                    className="rounded-full p-2 text-slate-600 transition-colors hover:bg-white/40 hover:text-slate-800"
+                    aria-label="닫기"
                   >
-                    닫기
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
                   </motion.button>
                 ) : null}
               </div>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="mt-4 sm:mt-6 grid gap-3 sm:gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
-                  <label className="text-sm font-extrabold text-slate-700">
+                  <label className="text-xs sm:text-sm font-extrabold text-slate-700">
                     내 이름
                   </label>
                   <input
@@ -140,7 +153,7 @@ export function OnboardingModal({
                 </div>
 
                 <div>
-                  <label className="text-sm font-extrabold text-slate-700">
+                  <label className="text-xs sm:text-sm font-extrabold text-slate-700">
                     성별
                   </label>
                   <select
@@ -158,7 +171,7 @@ export function OnboardingModal({
                 </div>
 
                 <div>
-                  <label className="text-sm font-extrabold text-slate-700">
+                  <label className="text-xs sm:text-sm font-extrabold text-slate-700">
                     나이
                   </label>
                   <input
@@ -172,7 +185,7 @@ export function OnboardingModal({
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-sm font-extrabold text-slate-700">
+                  <label className="text-xs sm:text-sm font-extrabold text-slate-700">
                     트리 모양
                   </label>
                   <div className="mt-2 grid grid-cols-3 gap-3">

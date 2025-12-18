@@ -172,18 +172,18 @@ export function MessageModal({
             exit={{ y: 12, scale: 0.98, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
             className={[
-              "relative w-full max-w-lg max-h-[calc(100vh-2rem)] rounded-[34px] border border-white/45 bg-white/35 p-5 shadow-[0_30px_80px_rgba(25,50,80,0.20)] backdrop-blur-xl sm:p-7 my-auto",
+              "relative w-full max-w-lg max-h-[calc(100vh-2rem)] rounded-[34px] border border-white/45 bg-white/35 p-4 sm:p-5 md:p-7 shadow-[0_30px_80px_rgba(25,50,80,0.20)] backdrop-blur-xl my-auto",
               "ring-1 ring-white/35 overflow-y-auto",
             ].join(" ")}
           >
             <div className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-b from-white/40 to-transparent opacity-70" />
             <div className="relative">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xl font-extrabold tracking-tight text-slate-800">
+                <div className="flex-1 min-w-0">
+                  <p className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">
                     {itemType === "ornament" ? "오너먼트 달기" : "선물 주기"}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-xs sm:text-sm text-slate-600">
                     {itemType === "ornament"
                       ? "질문에 답하고, 트리에 오너먼트를 달아줘."
                       : "트리 아래에 선물을 놓고, 하고 싶은 말을 남겨줘."}
@@ -195,9 +195,22 @@ export function MessageModal({
                   whileHover={{ scale: 1.05, y: -1 }}
                   whileTap={{ scale: 0.95 }}
                   transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="rounded-2xl bg-white/40 px-3 py-2 text-sm font-bold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 transition-all duration-200 hover:bg-white/50 hover:shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_12px_20px_rgba(25,50,80,0.12)]"
+                  className="rounded-full p-2 text-slate-600 transition-colors hover:bg-white/40 hover:text-slate-800 flex-shrink-0"
+                  aria-label="닫기"
                 >
-                  닫기
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 </motion.button>
               </div>
 

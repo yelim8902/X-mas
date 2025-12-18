@@ -40,12 +40,30 @@ export function LoginModal({
           : null;
       const redirectPath = myTreeId ? `/?tree=${myTreeId}` : "/";
 
+      // 프로덕션 URL 사용 (프리뷰 URL이나 localhost 대신)
+      const PRODUCTION_URL =
+        process.env.NEXT_PUBLIC_PRODUCTION_URL ||
+        "https://x-mas-ashy.vercel.app";
+
+      // 현재 URL이 프리뷰 URL이거나 localhost인지 확인
+      const isLocalhost =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+      const isPreviewUrl =
+        window.location.hostname.includes(".vercel.app") &&
+        (window.location.hostname.split(".")[0].length > 20 ||
+          window.location.hostname.includes("-git-"));
+
+      // localhost나 프리뷰 URL이면 프로덕션 URL 사용
+      const baseUrl =
+        isLocalhost || isPreviewUrl ? PRODUCTION_URL : window.location.origin;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "kakao",
         options: {
-          redirectTo: `${
-            window.location.origin
-          }/auth/callback?redirect_to=${encodeURIComponent(redirectPath)}`,
+          redirectTo: `${baseUrl}/auth/callback?redirect_to=${encodeURIComponent(
+            redirectPath
+          )}`,
           queryParams: {
             // 카카오 로그인 시 동의 항목을 요청하지 않도록 scope 파라미터 제거
             // Supabase가 기본적으로 추가하는 scope를 제어하기 어려우므로,
@@ -80,7 +98,7 @@ export function LoginModal({
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 12, scale: 0.98, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
-            className="relative w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8 my-auto"
+            className="relative w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-4 sm:p-6 md:p-8 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 my-auto"
           >
             <div className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-b from-white/45 to-transparent opacity-70" />
             <div className="relative">

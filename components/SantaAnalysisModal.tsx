@@ -139,7 +139,7 @@ export function SantaAnalysisModal({
 
       // 데스크톱 또는 Web Share API 미지원: download 속성 사용
       const url = URL.createObjectURL(blob);
-      
+
       // 모바일 Safari 대응: 새 창으로 열기
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
         const newWindow = window.open(url, "_blank");
@@ -162,10 +162,7 @@ export function SantaAnalysisModal({
         onToast?.("이미지가 저장되었어요! 인스타에 공유해보세요!");
       }
     } catch (error: unknown) {
-      if (
-        error instanceof Error &&
-        error.name === "AbortError"
-      ) {
+      if (error instanceof Error && error.name === "AbortError") {
         // 사용자가 공유를 취소한 경우
         onToast?.("공유가 취소되었어요.");
       } else {
@@ -199,18 +196,18 @@ export function SantaAnalysisModal({
             animate={{ y: 0, scale: 1, opacity: 1 }}
             exit={{ y: 12, scale: 0.98, opacity: 0 }}
             transition={{ type: "spring", stiffness: 420, damping: 32 }}
-            className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-6 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 sm:p-8 my-auto"
+            className="relative w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[34px] border border-white/45 bg-white/35 p-4 sm:p-6 md:p-8 shadow-[0_30px_90px_rgba(25,50,80,0.22)] backdrop-blur-xl ring-1 ring-white/35 my-auto"
           >
             <div className="pointer-events-none absolute inset-0 rounded-[34px] bg-gradient-to-b from-white/55 to-transparent opacity-80" />
             <div className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-white/45 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-28 -right-20 h-80 w-80 rounded-full bg-white/35 blur-3xl" />
 
             <div className="relative flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xl font-extrabold tracking-tight text-slate-800">
+              <div className="flex-1 min-w-0">
+                <p className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">
                   AI 산타의 한 해 분석
                 </p>
-                <p className="mt-1 text-sm font-semibold text-slate-600">
+                <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-600">
                   친구들의 메시지를 모아 따뜻하게 요약하고, 무형의 선물을
                   처방해요.
                 </p>
@@ -219,9 +216,22 @@ export function SantaAnalysisModal({
                 type="button"
                 onClick={onClose}
                 whileTap={{ scale: 0.98 }}
-                className="rounded-2xl bg-white/40 px-3 py-2 text-sm font-bold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45"
+                className="rounded-full p-2 text-slate-600 transition-colors hover:bg-white/40 hover:text-slate-800 flex-shrink-0"
+                aria-label="닫기"
               >
-                닫기
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </motion.button>
             </div>
 
