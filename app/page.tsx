@@ -433,7 +433,14 @@ export default function Home() {
         setIsAuthChecking(false);
       }
     }
-  }, [pathname, user, pendingTreeData, checkTreeOwnership, treeId, findUserTree]);
+  }, [
+    pathname,
+    user,
+    pendingTreeData,
+    checkTreeOwnership,
+    treeId,
+    findUserTree,
+  ]);
 
   // 트리 저장 함수 (로그인 후)
   const saveTreeAfterLogin = useCallback(
@@ -908,6 +915,54 @@ export default function Home() {
       <div className="pointer-events-none absolute -bottom-28 left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-white/35 blur-3xl" />
 
       <div className="relative mx-auto flex min-h-dvh max-w-5xl flex-col px-5 pb-10 pt-6 sm:px-8 sm:pt-10">
+        {/* 로그인한 사용자 전용 상단 네비게이션 */}
+        {user && !pendingTreeData && (
+          <div className="mb-4 flex items-center justify-between">
+            <motion.button
+              type="button"
+              onClick={async () => {
+                if (!user?.id) return;
+                const userTreeId = await findUserTree(user.id);
+                if (userTreeId) {
+                  const newUrl = `/?tree=${userTreeId}`;
+                  window.history.replaceState({}, "", newUrl);
+                  setTreeId(userTreeId);
+                  setIsAuthChecking(true);
+                  void checkTreeOwnership(userTreeId, user.id);
+                } else {
+                  // 트리가 없으면 루트로 이동하여 온보딩 시작
+                  window.history.replaceState({}, "", "/");
+                  setTreeId(null);
+                  setIsOwner(false);
+                  setIsOnboardingOpen(true);
+                }
+              }}
+              whileHover={{ y: -1 }}
+              whileTap={{ y: 1, scale: 0.98 }}
+              className={[
+                "flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-extrabold tracking-tight text-slate-700",
+                "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
+                "transition-[transform,box-shadow] duration-150 ease-out",
+              ].join(" ")}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              <span>내 트리</span>
+            </motion.button>
+          </div>
+        )}
+
         {/* 트리 저장 중 로딩 표시 */}
         {pendingTreeData && user ? (
           <div className="flex flex-1 flex-col items-center justify-center">
@@ -1390,55 +1445,109 @@ export default function Home() {
               // 조건: isOwner === false && treeId !== null && !isAuthChecking
               // 필수 요소:
               // - "OOO님의 트리입니다" (이미 위에 표시됨)
+              // - 로그인한 사용자에게만 "내 트리 확인하기" 버튼 표시
               // - 오너먼트 달기 / 선물 주기 버튼 (메시지 남기기)
               // - 나도 트리 만들기 버튼 (아래에 있음)
               // - 주의: 오너 전용 기능(링크 복사, 트리 수정)은 절대 표시하지 않음
               // ==========================================
-              <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:gap-4">
-                <motion.button
-                  type="button"
-                  onClick={() => {
-                    setComposeDefaults({ itemType: "ornament" });
-                    setOpen(true);
-                  }}
-                  disabled={!host || isOnboardingOpen}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ y: 1, scale: 0.99 }}
-                  className={[
-                    "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
-                    "bg-gradient-to-b from-christmas-green to-[#239B62]",
-                    "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                    "transition-[transform,box-shadow] duration-150 ease-out",
-                    "active:shadow-clayPressed active:translate-y-[1px]",
-                    !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
-                  ].join(" ")}
-                >
-                  <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                  <span className="relative">오너먼트 달기</span>
-                </motion.button>
+              <div className="flex w-full max-w-md flex-col gap-3">
+                {/* 로그인한 사용자에게만 "내 트리 확인하기" 버튼 표시 */}
+                {user && (
+                  <motion.button
+                    type="button"
+                    onClick={async () => {
+                      if (!user?.id) return;
+                      const userTreeId = await findUserTree(user.id);
+                      if (userTreeId) {
+                        const newUrl = `/?tree=${userTreeId}`;
+                        window.history.replaceState({}, "", newUrl);
+                        setTreeId(userTreeId);
+                        setIsAuthChecking(true);
+                        void checkTreeOwnership(userTreeId, user.id);
+                      } else {
+                        // 트리가 없으면 루트로 이동하여 온보딩 시작
+                        window.history.replaceState({}, "", "/");
+                        setTreeId(null);
+                        setIsOwner(false);
+                        setIsOnboardingOpen(true);
+                      }
+                    }}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ y: 1, scale: 0.99 }}
+                    className={[
+                      "group relative w-full select-none rounded-clay px-6 py-4 text-base font-extrabold tracking-tight text-white",
+                      "bg-gradient-to-b from-slate-600 to-slate-700",
+                      "shadow-clay shadow-clayInset ring-1 ring-white/35",
+                      "transition-[transform,box-shadow] duration-150 ease-out",
+                      "active:shadow-clayPressed active:translate-y-[1px]",
+                    ].join(" ")}
+                  >
+                    <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/20 to-transparent opacity-70" />
+                    <span className="relative flex items-center justify-center gap-2">
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                      </svg>
+                      내 트리 확인하기
+                    </span>
+                  </motion.button>
+                )}
 
-                <motion.button
-                  type="button"
-                  onClick={() => {
-                    setComposeDefaults({ itemType: "gift", giftColor: "red" });
-                    setOpen(true);
-                  }}
-                  disabled={!host || isOnboardingOpen}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ y: 1, scale: 0.99 }}
-                  className={[
-                    "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
-                    "bg-gradient-to-b from-christmas-red to-[#D73C3C]",
-                    "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                    "transition-[transform,box-shadow] duration-150 ease-out",
-                    "active:shadow-clayPressed active:translate-y-[1px]",
-                    !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
-                  ].join(" ")}
-                >
-                  <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                  <span className="relative">선물 주기</span>
-                  <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
-                </motion.button>
+                <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4">
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      setComposeDefaults({ itemType: "ornament" });
+                      setOpen(true);
+                    }}
+                    disabled={!host || isOnboardingOpen}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ y: 1, scale: 0.99 }}
+                    className={[
+                      "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
+                      "bg-gradient-to-b from-christmas-green to-[#239B62]",
+                      "shadow-clay shadow-clayInset ring-1 ring-white/35",
+                      "transition-[transform,box-shadow] duration-150 ease-out",
+                      "active:shadow-clayPressed active:translate-y-[1px]",
+                      !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
+                    ].join(" ")}
+                  >
+                    <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                    <span className="relative">오너먼트 달기</span>
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      setComposeDefaults({ itemType: "gift", giftColor: "red" });
+                      setOpen(true);
+                    }}
+                    disabled={!host || isOnboardingOpen}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ y: 1, scale: 0.99 }}
+                    className={[
+                      "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
+                      "bg-gradient-to-b from-christmas-red to-[#D73C3C]",
+                      "shadow-clay shadow-clayInset ring-1 ring-white/35",
+                      "transition-[transform,box-shadow] duration-150 ease-out",
+                      "active:shadow-clayPressed active:translate-y-[1px]",
+                      !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
+                    ].join(" ")}
+                  >
+                    <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                    <span className="relative">선물 주기</span>
+                    <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
+                  </motion.button>
+                </div>
               </div>
             ) : // ==========================================
             // 상태 분기: 온보딩 화면 (State 1)
