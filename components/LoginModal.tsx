@@ -41,8 +41,8 @@ export function LoginModal({
           : null;
       const redirectPath = myTreeId ? `/tree/${myTreeId}` : "/dashboard";
 
-      // ⚠️ OAuth 리다이렉트는 항상 프로덕션 URL 사용 (Supabase 설정과 일치)
-      // 로컬 개발 환경에서도 프로덕션 URL을 사용하여 localhost 리다이렉트 문제 방지
+      // OAuth 리다이렉트 URL: 로컬 환경이면 localhost, 아니면 프로덕션 URL
+      // ⚠️ 로컬에서 테스트하려면 Supabase 설정에 http://localhost:3000/auth/callback 추가 필요
       const oauthRedirectUrl = getOAuthRedirectUrl();
       const callbackUrl = `${oauthRedirectUrl}/auth/callback?redirect_to=${encodeURIComponent(
         redirectPath

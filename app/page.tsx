@@ -18,6 +18,11 @@ export default function LandingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // 디버깅: isLoginModalOpen 상태 변경 추적
+  useEffect(() => {
+    console.log("[DEBUG] isLoginModalOpen changed:", isLoginModalOpen);
+  }, [isLoginModalOpen]);
   const [pendingTreeData, setPendingTreeData] = useState<{
     profile: HostProfile;
     treeId: string;
@@ -89,9 +94,22 @@ export default function LandingPage() {
     }
 
     // ?create=true 파라미터가 있으면 바로 온보딩 모달 열기
-    if (createParam === "true") {
+    // 단, "이미 트리를 만들었어요!" 플로우가 아니면 (viewExistingTree 플래그가 없으면)
+    const viewExistingTree =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("xmas.viewExistingTree") === "true"
+        : false;
+
+    if (createParam === "true" && !viewExistingTree) {
       setIsOnboardingOpen(true);
       // URL에서 create 파라미터 제거
+      urlParams.delete("create");
+      const newUrl = urlParams.toString()
+        ? `${window.location.pathname}?${urlParams.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    } else if (createParam === "true" && viewExistingTree) {
+      // viewExistingTree 플래그가 있으면 create 파라미터만 제거하고 온보딩 모달은 열지 않음
       urlParams.delete("create");
       const newUrl = urlParams.toString()
         ? `${window.location.pathname}?${urlParams.toString()}`
@@ -112,20 +130,38 @@ export default function LandingPage() {
       // tree 파라미터가 있으면 이미 위에서 처리됨
       if (treeParam) return;
 
+      // "이미 트리를 만들었어요!" 플로우 확인
+      const viewExistingTree =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem("xmas.viewExistingTree") === "true"
+          : false;
+
       // OAuth 콜백이거나 redirect_to가 있을 때만 자동 리다이렉트
       if (loginSuccess === "true") {
         showToast("로그인이 완료되었어요!");
         // URL에서 login_success 파라미터 제거하고 리다이렉트
         if (redirectTo) {
           router.replace(redirectTo);
+        } else if (viewExistingTree) {
+          // "이미 트리를 만들었어요!" 플로우면 대시보드로
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("xmas.viewExistingTree");
+          }
+          router.replace(getDashboardPath());
         } else {
           router.replace(getDashboardPath());
         }
       } else if (redirectTo) {
         // redirect_to가 있으면 해당 경로로 이동
         router.push(redirectTo);
+      } else if (viewExistingTree) {
+        // "이미 트리를 만들었어요!" 플로우면 대시보드로
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem("xmas.viewExistingTree");
+        }
+        router.push(getDashboardPath());
       }
-      // redirect_to가 없으면 랜딩 페이지에 머물러서 새 트리 만들기 가능
+      // redirect_to가 없고 viewExistingTree도 아니면 랜딩 페이지에 머물러서 새 트리 만들기 가능
     }
   }, [isLoading, user, pendingTreeData, router, showToast]);
 
@@ -163,8 +199,25 @@ export default function LandingPage() {
           setPendingTreeData(null);
         }
       })();
+      return;
     }
-  }, [user, pendingTreeData, router]);
+
+    // pendingTreeData가 없고 사용자가 로그인되었고 로그인 모달이 열려있었다면 대시보드로 이동
+    // ⚠️ user가 있을 때만 실행 (로그인 안 된 사용자는 로그인 모달을 열어야 하므로)
+    if (user?.id && isLoginModalOpen && !pendingTreeData) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const loginSuccess = urlParams.get("login_success");
+
+      // OAuth 콜백이 아닌 경우에만 대시보드로 이동
+      if (!loginSuccess) {
+        console.log(
+          "[DEBUG] User logged in, closing login modal and redirecting to dashboard"
+        );
+        setIsLoginModalOpen(false);
+        router.push(getDashboardPath());
+      }
+    }
+  }, [user, pendingTreeData, router, isLoginModalOpen, showToast]);
 
   // 로딩 중
   if (isLoading) {
@@ -229,8 +282,37 @@ export default function LandingPage() {
             previewSrc: "/images/tree3.png",
           },
         ]}
-        hasExistingTree={false}
-        onViewExistingTree={() => {}}
+        hasExistingTree={true}
+        onViewExistingTree={() => {
+          console.log("[DEBUG] onViewExistingTree called", { user: user?.id });
+          // localStorage의 my_tree_id를 제거하여 로그인 후 대시보드로 리다이렉트되도록 함
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("my_tree_id");
+            // "이미 트리를 만들었어요!" 플로우임을 표시 (로그인 후 대시보드로 가기 위함)
+            window.localStorage.setItem("xmas.viewExistingTree", "true");
+          }
+
+          // 로그인된 사용자면 바로 대시보드로 이동
+          if (user?.id) {
+            console.log(
+              "[DEBUG] User already logged in, redirecting to dashboard"
+            );
+            setIsOnboardingOpen(false);
+            if (typeof window !== "undefined") {
+              window.localStorage.removeItem("xmas.viewExistingTree");
+            }
+            router.push(getDashboardPath());
+          } else {
+            // 로그인 안 된 사용자면 로그인 모달 열기 (LoginModal에서 redirect_to를 /dashboard로 설정)
+            console.log("[DEBUG] User not logged in, opening login modal");
+            // 온보딩 모달을 먼저 닫고, 약간의 지연 후 로그인 모달 열기 (상태 업데이트 충돌 방지)
+            setIsOnboardingOpen(false);
+            setTimeout(() => {
+              console.log("[DEBUG] Setting isLoginModalOpen to true");
+              setIsLoginModalOpen(true);
+            }, 100);
+          }
+        }}
         onComplete={async (profile) => {
           // 항상 새로운 트리 ID 생성 (다중 트리 지원)
           const treeId =
@@ -296,8 +378,14 @@ export default function LandingPage() {
       <LoginModal
         open={isLoginModalOpen}
         canClose={!pendingTreeData}
-        onClose={() => setIsLoginModalOpen(false)}
+        onClose={() => {
+          console.log("[DEBUG] LoginModal onClose called");
+          setIsLoginModalOpen(false);
+        }}
         onSuccess={() => {
+          console.log("[DEBUG] LoginModal onSuccess called");
+          // 로그인 성공 시 OAuth 콜백을 통해 자동으로 리다이렉트됨
+          // redirect_to 파라미터가 /dashboard로 설정되어 있음 (my_tree_id가 없으면)
           setIsLoginModalOpen(false);
         }}
         message={
@@ -306,6 +394,13 @@ export default function LandingPage() {
             : "트리를 관리하려면 로그인이 필요해요!"
         }
       />
+
+      {/* 디버깅용: 로그인 모달 상태 확인 */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed bottom-4 left-4 bg-black/80 text-white p-2 text-xs rounded z-[9999]">
+          isLoginModalOpen: {String(isLoginModalOpen)}
+        </div>
+      )}
 
       <Toast open={toast.open} message={toast.message} />
     </main>

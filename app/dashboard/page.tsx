@@ -27,20 +27,28 @@ export default function DashboardPage() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      setIsLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // 로그인 안 된 사용자는 랜딩 페이지로 리다이렉트
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/");
+    }
+  }, [isLoading, user, router]);
+
   useEffect(() => {
     if (!user?.id) {
-      setIsLoading(false);
       return;
     }
 
@@ -87,28 +95,16 @@ export default function DashboardPage() {
     }
   };
 
+  // 로그인 안 된 사용자는 랜딩 페이지로 리다이렉트
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace("/");
+    }
+  }, [isLoading, user, router]);
+
   if (!user) {
-    return (
-      <main className="relative min-h-dvh overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-skyPastel-50 via-skyPastel-100 to-skyPastel-200" />
-        <div className="relative mx-auto flex min-h-dvh max-w-5xl flex-col items-center justify-center px-5 pb-10 pt-6 sm:px-8 sm:pt-10">
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-lg font-bold text-slate-700">
-              로그인이 필요해요
-            </p>
-            <motion.button
-              type="button"
-              onClick={handleCreateTree}
-              whileHover={{ y: -1 }}
-              whileTap={{ y: 1, scale: 0.98 }}
-              className="rounded-2xl bg-christmas-green px-6 py-3 text-base font-extrabold text-white shadow-sm"
-            >
-              로그인하고 트리 만들기
-            </motion.button>
-          </div>
-        </div>
-      </main>
-    );
+    // 로딩 중이거나 리다이렉트 대기 중
+    return null;
   }
 
   return (

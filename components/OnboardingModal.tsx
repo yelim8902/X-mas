@@ -243,25 +243,28 @@ export function OnboardingModal({
                   <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
                   <span className="relative">내 트리 생성하기</span>
                 </motion.button>
-                {hasExistingTree && onViewExistingTree && (
+
+                {/* 이미 트리를 만들었어요! 버튼 - onViewExistingTree가 있으면 항상 표시 */}
+                {onViewExistingTree ? (
                   <motion.button
                     type="button"
-                    onClick={onViewExistingTree}
+                    onClick={() => {
+                      onClose?.();
+                      onViewExistingTree();
+                    }}
                     whileHover={{ y: -1 }}
                     whileTap={{ y: 1, scale: 0.99 }}
                     className={[
-                      "relative w-full select-none rounded-clay px-7 py-4 text-base font-extrabold tracking-tight text-slate-700",
-                      "bg-white/60 border border-white/50",
-                      "shadow-clay shadow-clayInset ring-1 ring-white/35 transition-[transform,filter] duration-150 ease-out",
-                      "active:shadow-clayPressed active:translate-y-[1px]",
+                      "relative w-full select-none rounded-2xl px-7 py-3 text-sm font-extrabold tracking-tight text-slate-700",
+                      "bg-white/50 border border-white/50",
+                      "shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/35 transition-[transform,filter] duration-150 ease-out",
+                      "active:translate-y-[1px]",
                       "hover:bg-white/70",
                     ].join(" ")}
                   >
-                    <span className="relative">
-                      내 트리 확인하기 (트리를 이미 만들었어요!)
-                    </span>
+                    <span className="relative">이미 트리를 만들었어요!</span>
                   </motion.button>
-                )}
+                ) : null}
               </div>
             </div>
           </motion.div>

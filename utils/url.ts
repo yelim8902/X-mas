@@ -27,11 +27,22 @@ export function getBaseUrl(): string {
 }
 
 /**
- * OAuth 리다이렉트용 base URL (항상 프로덕션 URL 사용)
- * 로컬 개발 환경에서도 프로덕션 URL을 사용하여 Supabase OAuth 설정과 일치시킴
+ * OAuth 리다이렉트용 base URL
+ * - 로컬 개발 환경: localhost 사용 (Supabase 설정에 localhost 추가 필요)
+ * - 프로덕션: 프로덕션 URL 사용
  */
 export function getOAuthRedirectUrl(): string {
-  return getProductionUrl();
+  // 서버 사이드에서는 프로덕션 URL 사용
+  if (typeof window === "undefined") {
+    return getProductionUrl();
+  }
+
+  // 클라이언트 사이드에서 localhost 감지
+  const isLocalhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  return isLocalhost ? window.location.origin : getProductionUrl();
 }
 
 /**
