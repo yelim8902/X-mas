@@ -52,5 +52,8 @@ export async function GET(request: NextRequest) {
     finalUrl = new URL(pathAndQuery || "/", PRODUCTION_URL);
   }
 
+  // 로그인 완료 토스트를 위한 쿼리 파라미터 추가
+  finalUrl.searchParams.set("login_success", "true");
+
   return NextResponse.redirect(finalUrl);
 }

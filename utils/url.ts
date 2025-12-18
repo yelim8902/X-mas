@@ -35,9 +35,23 @@ export function getOAuthRedirectUrl(): string {
 }
 
 /**
- * 게스트용 트리 링크 생성
+ * 게스트용 트리 링크 생성 (새 URL 구조: /tree/{id})
  */
 export function getGuestTreeUrl(treeId: string): string {
   const baseUrl = getBaseUrl();
-  return `${baseUrl}/?tree=${treeId}`;
+  return `${baseUrl}/tree/${treeId}`;
+}
+
+/**
+ * 트리 페이지 경로 생성
+ */
+export function getTreePath(treeId: string): string {
+  return `/tree/${treeId}`;
+}
+
+/**
+ * 대시보드 경로
+ */
+export function getDashboardPath(): string {
+  return "/dashboard";
 }

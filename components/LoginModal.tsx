@@ -39,7 +39,7 @@ export function LoginModal({
         typeof window !== "undefined"
           ? window.localStorage.getItem("my_tree_id")
           : null;
-      const redirectPath = myTreeId ? `/?tree=${myTreeId}` : "/";
+      const redirectPath = myTreeId ? `/tree/${myTreeId}` : "/dashboard";
 
       // ⚠️ OAuth 리다이렉트는 항상 프로덕션 URL 사용 (Supabase 설정과 일치)
       // 로컬 개발 환경에서도 프로덕션 URL을 사용하여 localhost 리다이렉트 문제 방지
