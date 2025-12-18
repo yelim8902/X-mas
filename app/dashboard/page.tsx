@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/utils/supabase";
 import { getTreePath } from "@/utils/url";
 import { GlobalNavBar } from "@/components/GlobalNavBar";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 type TreeItem = {
   id: string;
@@ -23,6 +24,8 @@ export default function DashboardPage() {
   const [trees, setTrees] = useState<TreeItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [treeToDelete, setTreeToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -95,6 +98,46 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDeleteTree = async (treeId: string) => {
+    if (isDeleting) return;
+
+    setIsDeleting(true);
+    try {
+      // Supabase에서 트리 삭제
+      const { error: deleteError } = await supabase
+        .from("trees")
+        .delete()
+        .eq("id", treeId)
+        .eq("user_id", user?.id); // 본인의 트리만 삭제 가능
+
+      if (deleteError) {
+        console.error("트리 삭제 실패:", deleteError);
+        setError("트리 삭제에 실패했어요.");
+        setIsDeleting(false);
+        setTreeToDelete(null);
+        return;
+      }
+
+      // 로컬 상태에서도 삭제
+      setTrees((prev) => prev.filter((tree) => tree.id !== treeId));
+
+      // localStorage에서도 제거 (현재 선택된 트리인 경우)
+      if (typeof window !== "undefined") {
+        const currentTreeId = window.localStorage.getItem("my_tree_id");
+        if (currentTreeId === treeId) {
+          window.localStorage.removeItem("my_tree_id");
+        }
+      }
+
+      setTreeToDelete(null);
+    } catch (e) {
+      console.error("트리 삭제 중 오류:", e);
+      setError("트리 삭제에 실패했어요.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // 로그인 안 된 사용자는 랜딩 페이지로 리다이렉트
   useEffect(() => {
     if (!isLoading && !user) {
@@ -154,42 +197,92 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {trees.map((tree) => (
-              <motion.button
+              <motion.div
                 key={tree.id}
-                type="button"
-                onClick={() => handleSelectTree(tree.id)}
                 whileHover={{ y: -2 }}
-                whileTap={{ y: 0, scale: 0.98 }}
                 className="group relative overflow-hidden rounded-3xl border border-white/40 bg-white/30 p-6 text-left shadow-[0_20px_50px_rgba(25,50,80,0.12)] backdrop-blur-xl transition-all hover:bg-white/40"
               >
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-lg font-extrabold text-slate-700">
-                    {tree.host_name}님의 트리
-                  </h2>
-                  <div className="h-2 w-2 rounded-full bg-christmas-green" />
-                </div>
-                <p className="mb-2 text-sm text-slate-600">
-                  {tree.host_gender === "female"
-                    ? "여성"
-                    : tree.host_gender === "male"
-                    ? "남성"
-                    : "비공개"}{" "}
-                  · {tree.host_age}살
-                </p>
-                <p className="text-xs text-slate-500">
-                  생성일:{" "}
-                  {new Date(tree.created_at).toLocaleDateString("ko-KR")}
-                </p>
-                {tree.updated_at !== tree.created_at && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    수정일:{" "}
-                    {new Date(tree.updated_at).toLocaleDateString("ko-KR")}
+                <button
+                  type="button"
+                  onClick={() => handleSelectTree(tree.id)}
+                  className="w-full text-left"
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-lg font-extrabold text-slate-700">
+                      {tree.host_name}님의 트리
+                    </h2>
+                    <div className="h-2 w-2 rounded-full bg-christmas-green" />
+                  </div>
+                  <p className="mb-2 text-sm text-slate-600">
+                    {tree.host_gender === "female"
+                      ? "여성"
+                      : tree.host_gender === "male"
+                      ? "남성"
+                      : "비공개"}{" "}
+                    · {tree.host_age}살
                   </p>
-                )}
-              </motion.button>
+                  <p className="text-xs text-slate-500">
+                    생성일:{" "}
+                    {new Date(tree.created_at).toLocaleDateString("ko-KR")}
+                  </p>
+                  {tree.updated_at !== tree.created_at && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      수정일:{" "}
+                      {new Date(tree.updated_at).toLocaleDateString("ko-KR")}
+                    </p>
+                  )}
+                </button>
+
+                {/* 삭제 버튼 */}
+                <motion.button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTreeToDelete(tree.id);
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="absolute right-4 top-4 rounded-full bg-christmas-red/10 p-2 text-christmas-red opacity-0 transition-opacity hover:bg-christmas-red/20 group-hover:opacity-100"
+                  aria-label="트리 삭제"
+                >
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </motion.button>
+              </motion.div>
             ))}
           </div>
         )}
+
+        {/* 트리 삭제 확인 모달 */}
+        <ConfirmModal
+          open={treeToDelete !== null}
+          title="트리를 삭제할까요?"
+          description={`${
+            trees.find((t) => t.id === treeToDelete)?.host_name || ""
+          }님의 트리가 영구적으로 삭제됩니다. (되돌릴 수 없음)`}
+          confirmText={isDeleting ? "삭제 중..." : "삭제"}
+          cancelText="취소"
+          danger
+          onCancel={() => {
+            if (!isDeleting) setTreeToDelete(null);
+          }}
+          onConfirm={() => {
+            if (treeToDelete && !isDeleting) {
+              void handleDeleteTree(treeToDelete);
+            }
+          }}
+        />
       </div>
     </main>
   );
