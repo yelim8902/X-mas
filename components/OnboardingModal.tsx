@@ -19,6 +19,7 @@ type Props = {
   onComplete: (profile: HostProfile) => void;
   hasExistingTree?: boolean;
   onViewExistingTree?: () => void;
+  isEditMode?: boolean; // 수정 모드 여부
 };
 
 export function OnboardingModal({
@@ -29,6 +30,7 @@ export function OnboardingModal({
   onComplete,
   hasExistingTree = false,
   onViewExistingTree,
+  isEditMode = false,
 }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [gender, setGender] = useState<HostProfile["gender"]>(
@@ -111,10 +113,14 @@ export function OnboardingModal({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-lg sm:text-xl font-extrabold tracking-tight text-slate-800">
-                    내 크리스마스 트리 만들기
+                    {isEditMode
+                      ? "내 트리 정보 수정하기"
+                      : "내 크리스마스 트리 만들기"}
                   </p>
                   <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-600">
-                    처음 한 번만 입력하면, 내 트리가 예쁘게 세팅돼.
+                    {isEditMode
+                      ? "트리 정보를 수정할 수 있어요."
+                      : "처음 한 번만 입력하면, 내 트리가 예쁘게 세팅돼."}
                   </p>
                 </div>
                 {onClose ? (
@@ -241,11 +247,13 @@ export function OnboardingModal({
                   ].join(" ")}
                 >
                   <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                  <span className="relative">내 트리 생성하기</span>
+                  <span className="relative">
+                    {isEditMode ? "내 트리 수정하기" : "내 트리 생성하기"}
+                  </span>
                 </motion.button>
 
-                {/* 이미 트리를 만들었어요! 버튼 - onViewExistingTree가 있으면 항상 표시 */}
-                {onViewExistingTree ? (
+                {/* 이미 트리를 만들었어요! 버튼 - 수정 모드가 아닐 때만 표시 */}
+                {!isEditMode && onViewExistingTree ? (
                   <motion.button
                     type="button"
                     onClick={() => {

@@ -819,6 +819,7 @@ export default function TreePage() {
           availableTreeStyles={availableTreeStyles}
           hasExistingTree={false}
           onViewExistingTree={() => {}}
+          isEditMode={true}
           onComplete={async (profile) => {
             if (!treeId) return;
             try {

@@ -103,7 +103,18 @@ export default function DashboardPage() {
 
     setIsDeleting(true);
     try {
-      // Supabase에서 트리 삭제
+      // 1. 먼저 관련 메시지들 삭제 (트리 삭제 전에)
+      const { error: messagesDeleteError } = await supabase
+        .from("messages")
+        .delete()
+        .eq("tree_id", treeId);
+
+      if (messagesDeleteError) {
+        console.error("메시지 삭제 실패:", messagesDeleteError);
+        // 메시지 삭제 실패해도 트리 삭제는 계속 진행
+      }
+
+      // 2. 트리 삭제
       const { error: deleteError } = await supabase
         .from("trees")
         .delete()
@@ -118,15 +129,17 @@ export default function DashboardPage() {
         return;
       }
 
-      // 로컬 상태에서도 삭제
+      // 3. 로컬 상태에서도 삭제
       setTrees((prev) => prev.filter((tree) => tree.id !== treeId));
 
-      // localStorage에서도 제거 (현재 선택된 트리인 경우)
+      // 4. localStorage에서도 제거 (현재 선택된 트리인 경우)
       if (typeof window !== "undefined") {
         const currentTreeId = window.localStorage.getItem("my_tree_id");
         if (currentTreeId === treeId) {
           window.localStorage.removeItem("my_tree_id");
         }
+        // 트리 관련 localStorage 데이터도 정리
+        window.localStorage.removeItem(`xmas.santaResult:${treeId}`);
       }
 
       setTreeToDelete(null);
