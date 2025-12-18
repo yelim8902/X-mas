@@ -91,8 +91,13 @@ export async function POST(req: Request) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // 안정적인 모델만 사용: gemini-1.5-flash를 1순위로
-    const modelCandidates = ["gemini-1.5-flash", "gemini-1.5-pro"];
+    // 사용 가능한 안정적인 모델 사용: gemini-2.5-flash를 1순위로
+    // gemini-1.5-flash/pro는 더 이상 사용할 수 없으므로 2.5/2.0 시리즈 사용
+    const modelCandidates = [
+      "gemini-2.5-flash", // 가장 안정적인 최신 모델
+      "gemini-2.0-flash-001", // 안정 버전
+      "gemini-2.0-flash", // fallback
+    ];
 
     console.error("[Santa API] Starting Gemini request", {
       candidates: modelCandidates,
