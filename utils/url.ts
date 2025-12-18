@@ -11,7 +11,7 @@ export function getProductionUrl(): string {
  * 현재 환경에 맞는 base URL을 반환
  * - 로컬 개발 환경: window.location.origin
  * - 그 외: 프로덕션 URL
- * 
+ *
  * ⚠️ OAuth 리다이렉트용: 항상 프로덕션 URL 사용 (로컬 개발 환경 제외)
  */
 export function getBaseUrl(): string {

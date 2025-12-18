@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     // 절대 URL인 경우
     finalUrl = new URL(redirectTo);
-    
+
     // localhost, 127.0.0.1, 또는 프리뷰 URL이면 무조건 프로덕션 URL로 변경
     const isInvalidHost =
       finalUrl.hostname === "localhost" ||
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       (finalUrl.hostname.includes(".vercel.app") &&
         (finalUrl.hostname.split(".")[0].length > 20 ||
           finalUrl.hostname.includes("-git-")));
-    
+
     if (isInvalidHost) {
       // 경로와 쿼리만 추출하여 프로덕션 URL과 결합
       const pathAndQuery = redirectTo.replace(/^https?:\/\/[^/]+/, "") || "/";

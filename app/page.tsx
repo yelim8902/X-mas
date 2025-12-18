@@ -1415,8 +1415,22 @@ export default function Home() {
                 <motion.button
                   type="button"
                   onClick={() => {
-                    // 루트 URL로 이동하여 온보딩 시작
-                    window.location.href = window.location.origin;
+                    // 새 트리 생성을 위해 상태 초기화
+                    // localStorage의 기존 트리 데이터 제거
+                    if (typeof window !== "undefined") {
+                      window.localStorage.removeItem("xmas.hostProfile");
+                      window.localStorage.removeItem("my_tree_id");
+                      window.localStorage.removeItem("xmas.pendingTreeData");
+                    }
+
+                    // 상태 초기화
+                    setTreeId(null);
+                    setHost(null);
+                    setIsOwner(false);
+                    setIsOnboardingOpen(true);
+
+                    // URL을 루트로 변경 (온보딩 화면 표시)
+                    window.history.replaceState({}, "", "/");
                   }}
                   whileHover={{ y: -1 }}
                   whileTap={{ y: 1, scale: 0.98 }}
