@@ -10,27 +10,46 @@ export async function GET(request: NextRequest) {
   // 로그인 후 원래 페이지로 리다이렉트하거나, 트리 ID가 있으면 트리 페이지로
   const redirectTo = requestUrl.searchParams.get("redirect_to") || "/";
 
-  // 프로덕션 URL 사용 (localhost나 프리뷰 URL 대신)
+  // ⚠️ 항상 프로덕션 URL 사용 (localhost 리다이렉트 문제 완전 방지)
   const PRODUCTION_URL = getProductionUrl();
 
   // redirectTo가 절대 URL인지 확인
   let finalUrl: URL;
   try {
-    // 절대 URL인 경우 그대로 사용
+    // 절대 URL인 경우
     finalUrl = new URL(redirectTo);
-    // localhost나 프리뷰 URL이면 프로덕션 URL로 변경
-    if (
+    
+    // localhost, 127.0.0.1, 또는 프리뷰 URL이면 무조건 프로덕션 URL로 변경
+    const isInvalidHost =
       finalUrl.hostname === "localhost" ||
       finalUrl.hostname === "127.0.0.1" ||
+      finalUrl.hostname === "0.0.0.0" ||
       (finalUrl.hostname.includes(".vercel.app") &&
         (finalUrl.hostname.split(".")[0].length > 20 ||
-          finalUrl.hostname.includes("-git-")))
-    ) {
-      finalUrl = new URL(redirectTo, PRODUCTION_URL);
+          finalUrl.hostname.includes("-git-")));
+    
+    if (isInvalidHost) {
+      // 경로와 쿼리만 추출하여 프로덕션 URL과 결합
+      const pathAndQuery = redirectTo.replace(/^https?:\/\/[^/]+/, "") || "/";
+      finalUrl = new URL(pathAndQuery, PRODUCTION_URL);
+    } else if (finalUrl.hostname !== new URL(PRODUCTION_URL).hostname) {
+      // 프로덕션 도메인이 아닌 다른 도메인이면 프로덕션 URL로 변경
+      const pathAndQuery = redirectTo.replace(/^https?:\/\/[^/]+/, "") || "/";
+      finalUrl = new URL(pathAndQuery, PRODUCTION_URL);
     }
   } catch {
-    // 상대 경로인 경우 프로덕션 URL 사용
+    // 상대 경로인 경우 무조건 프로덕션 URL 사용
     finalUrl = new URL(redirectTo, PRODUCTION_URL);
+  }
+
+  // 최종 확인: localhost가 포함되어 있으면 무조건 프로덕션 URL로 변경
+  if (
+    finalUrl.hostname === "localhost" ||
+    finalUrl.hostname === "127.0.0.1" ||
+    finalUrl.hostname === "0.0.0.0"
+  ) {
+    const pathAndQuery = finalUrl.pathname + finalUrl.search;
+    finalUrl = new URL(pathAndQuery || "/", PRODUCTION_URL);
   }
 
   return NextResponse.redirect(finalUrl);

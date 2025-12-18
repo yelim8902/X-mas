@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
-import { getBaseUrl } from "@/utils/url";
+import { getOAuthRedirectUrl } from "@/utils/url";
 
 type Props = {
   open: boolean;
@@ -41,15 +41,17 @@ export function LoginModal({
           : null;
       const redirectPath = myTreeId ? `/?tree=${myTreeId}` : "/";
 
-      // 유틸리티 함수를 사용하여 base URL 가져오기
-      const baseUrl = getBaseUrl();
+      // ⚠️ OAuth 리다이렉트는 항상 프로덕션 URL 사용 (Supabase 설정과 일치)
+      // 로컬 개발 환경에서도 프로덕션 URL을 사용하여 localhost 리다이렉트 문제 방지
+      const oauthRedirectUrl = getOAuthRedirectUrl();
+      const callbackUrl = `${oauthRedirectUrl}/auth/callback?redirect_to=${encodeURIComponent(
+        redirectPath
+      )}`;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "kakao",
         options: {
-          redirectTo: `${baseUrl}/auth/callback?redirect_to=${encodeURIComponent(
-            redirectPath
-          )}`,
+          redirectTo: callbackUrl,
           queryParams: {
             // 카카오 로그인 시 동의 항목을 요청하지 않도록 scope 파라미터 제거
             // Supabase가 기본적으로 추가하는 scope를 제어하기 어려우므로,
