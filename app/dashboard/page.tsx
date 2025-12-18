@@ -77,13 +77,13 @@ export default function DashboardPage() {
   };
 
   const handleCreateTree = () => {
-    // localStorage 완전 정리 후 완전 새로고침
+    // localStorage 완전 정리 후 완전 새로고침 (온보딩 모달 자동 열기)
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("my_tree_id");
       window.localStorage.removeItem("xmas.hostProfile");
       window.localStorage.removeItem("xmas.pendingTreeData");
-      // 완전 새로고침하여 온보딩 모달이 뜨게 함
-      window.location.href = "/";
+      // create 파라미터와 함께 완전 새로고침하여 온보딩 모달이 바로 뜨게 함
+      window.location.href = "/?create=true";
     }
   };
 

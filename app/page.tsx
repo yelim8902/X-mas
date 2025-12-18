@@ -32,15 +32,15 @@ export default function LandingPage() {
     window.setTimeout(() => setToast((t) => ({ ...t, open: false })), 2200);
   }, []);
 
-  // 새 트리 만들기: localStorage 정리 후 완전 새로고침
+  // 새 트리 만들기: localStorage 정리 후 완전 새로고침 (온보딩 모달 자동 열기)
   const handleCreateNewTree = useCallback(() => {
     if (typeof window !== "undefined") {
       // localStorage 완전 정리
       window.localStorage.removeItem("my_tree_id");
       window.localStorage.removeItem("xmas.hostProfile");
       window.localStorage.removeItem("xmas.pendingTreeData");
-      // 완전 새로고침하여 온보딩 모달이 뜨게 함
-      window.location.href = "/";
+      // create 파라미터와 함께 완전 새로고침하여 온보딩 모달이 바로 뜨게 함
+      window.location.href = "/?create=true";
     }
   }, []);
 
@@ -80,11 +80,23 @@ export default function LandingPage() {
 
     const urlParams = new URLSearchParams(window.location.search);
     const treeParam = urlParams.get("tree");
+    const createParam = urlParams.get("create");
 
     // ?tree=xxx 형식의 기존 링크를 새 URL 구조로 리다이렉트
     if (treeParam) {
       router.replace(getTreePath(treeParam));
       return;
+    }
+
+    // ?create=true 파라미터가 있으면 바로 온보딩 모달 열기
+    if (createParam === "true") {
+      setIsOnboardingOpen(true);
+      // URL에서 create 파라미터 제거
+      urlParams.delete("create");
+      const newUrl = urlParams.toString()
+        ? `${window.location.pathname}?${urlParams.toString()}`
+        : window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
     }
   }, [isLoading, router]);
 
