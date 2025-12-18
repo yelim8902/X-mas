@@ -22,6 +22,7 @@ import {
   type TreeRow,
 } from "@/utils/supabase";
 import { resolveItemFileBase } from "@/utils/itemAssets";
+import { getGuestTreeUrl } from "@/utils/url";
 
 // 순수 함수들을 컴포넌트 외부로 이동 (최적화)
 function stableRand(seed: number) {
@@ -108,16 +109,18 @@ export default function Home() {
     return params.get("debug") === "1";
   }, []);
 
-  const isUnlocked = useMemo(() => {
+  // Hydration Error 방지: 클라이언트에서만 시간 계산
+  const [isGiftUnlocked, setIsGiftUnlocked] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
     // Time Lock: 12/24 00:00 (KST)
     const unlockAt = new Date("2025-12-24T00:00:00+09:00").getTime();
-    return Date.now() >= unlockAt || isDebugMode;
-  }, [isDebugMode]);
-
-  const isGiftUnlocked = useMemo(() => {
+    const isUnlocked = Date.now() >= unlockAt || isDebugMode;
     // 선물(gift)만 타임락 적용. host=1 이면 선물도 언제든지 열람 가능.
-    return isUnlocked || isHostMode;
-  }, [isUnlocked, isHostMode]);
+    setIsGiftUnlocked(isUnlocked || isHostMode);
+  }, [isDebugMode, isHostMode]);
 
   const showToast = useCallback((message: string) => {
     setToast({ open: true, message });
@@ -315,11 +318,11 @@ export default function Home() {
     }
   }, [user, pendingTreeData]);
 
-  // 트리 소유권 확인 (Single Source of Truth: Supabase DB를 최우선으로 신뢰)
+  // 트리 소유권 확인 (통합된 로직 - 레이스 컨디션 방지)
   const checkTreeOwnership = useCallback(
-    async (treeId: string) => {
-      // user와 treeId가 모두 준비되었을 때만 DB 조회
-      if (!user || !treeId) {
+    async (targetTreeId: string, targetUserId: string) => {
+      // 인자로 받은 treeId와 userId를 사용하여 레이스 컨디션 방지
+      if (!targetUserId || !targetTreeId) {
         setIsOwner(false);
         setIsAuthChecking(false);
         return;
@@ -331,7 +334,7 @@ export default function Home() {
         const { data, error } = await supabase
           .from("trees")
           .select("user_id")
-          .eq("id", treeId)
+          .eq("id", targetTreeId)
           .single();
 
         if (error || !data) {
@@ -341,23 +344,24 @@ export default function Home() {
         }
 
         // DB의 user_id와 현재 로그인한 user.id를 비교하여 소유권 결정
-        setIsOwner(data.user_id === user.id);
+        // 상태 업데이트는 한 번에 수행하여 깜빡임 방지
+        const isOwnerResult = data.user_id === targetUserId;
+        setIsOwner(isOwnerResult);
+        setIsAuthChecking(false);
       } catch {
         setIsOwner(false);
-      } finally {
         setIsAuthChecking(false);
       }
     },
-    [user]
+    []
   );
 
   useEffect(() => {
-    // ✅ 엄격한 3가지 상태 분기: 온보딩 / 오너 / 게스트
+    // ✅ 통합된 상태 관리: 온보딩 / 오너 / 게스트
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
 
     // pendingTreeData가 있으면 트리 저장 중이므로 소유권 확인 건너뛰기
-    // 트리 저장이 완료되면 pendingTreeData가 null이 되고, 그때 다시 이 useEffect가 실행됨
     if (pendingTreeData) {
       return;
     }
@@ -368,11 +372,13 @@ export default function Home() {
       if (treeId !== urlTree) {
         setTreeId(urlTree);
         setIsOwner(false);
+        setIsAuthChecking(true); // 새 트리 로드 시 로딩 시작
       }
 
       // 트리 소유권 확인 (user와 treeId가 준비되었을 때만)
-      if (user && urlTree) {
-        void checkTreeOwnership(urlTree);
+      // 레이스 컨디션 방지를 위해 현재 값들을 인자로 전달
+      if (user?.id && urlTree) {
+        void checkTreeOwnership(urlTree, user.id);
       } else if (!user && urlTree) {
         // user가 없으면 게스트로 처리
         setIsOwner(false);
@@ -582,54 +588,51 @@ export default function Home() {
   }, []);
 
   const handleDragEnd = useCallback(
-    async (id: string, m: MessageRow, event: any) => {
+    async (id: string, m: MessageRow, event: any, info: any) => {
       if (!treeItemsContainerRef.current || !treeId) {
         setDraggingItemId(null);
         return;
       }
 
+      // Framer Motion의 info 객체에서 상대 좌표 사용
       const rect = treeItemsContainerRef.current.getBoundingClientRect();
-      const itemElement = event.target as HTMLElement;
 
-      requestAnimationFrame(() => {
-        const itemRect = itemElement.getBoundingClientRect();
-        const itemCenterX = itemRect.left + itemRect.width / 2;
-        const itemCenterY = itemRect.top + itemRect.height / 2;
-        const relativeX = itemCenterX - rect.left;
-        const relativeY = itemCenterY - rect.top;
-        const xPercent = Math.max(
-          0,
-          Math.min(100, (relativeX / rect.width) * 100)
+      // info.point는 드래그 종료 시점의 절대 좌표
+      // info.offset은 드래그 시작점으로부터의 상대 이동 거리
+      // info.point를 사용하여 컨테이너 내부의 상대 위치 계산
+      const containerX = info.point.x - rect.left;
+      const containerY = info.point.y - rect.top;
+
+      const xPercent = Math.max(
+        0,
+        Math.min(100, (containerX / rect.width) * 100)
+      );
+      const yPercent = Math.max(
+        0,
+        Math.min(100, (containerY / rect.height) * 100)
+      );
+
+      try {
+        const { error } = await supabase
+          .from("messages")
+          .update({ position_x: xPercent, position_y: yPercent })
+          .eq("id", m.id);
+
+        if (error) throw error;
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            String(msg.id) === id
+              ? { ...msg, position_x: xPercent, position_y: yPercent }
+              : msg
+          )
         );
-        const yPercent = Math.max(
-          0,
-          Math.min(100, (relativeY / rect.height) * 100)
-        );
-
-        void (async () => {
-          try {
-            const { error } = await supabase
-              .from("messages")
-              .update({ position_x: xPercent, position_y: yPercent })
-              .eq("id", m.id);
-
-            if (error) throw error;
-
-            setMessages((prev) =>
-              prev.map((msg) =>
-                String(msg.id) === id
-                  ? { ...msg, position_x: xPercent, position_y: yPercent }
-                  : msg
-              )
-            );
-          } catch (e) {
-            console.error("위치 저장 실패:", e);
-            showToast("위치 저장에 실패했어요.");
-          } finally {
-            setDraggingItemId(null);
-          }
-        })();
-      });
+      } catch (e) {
+        console.error("위치 저장 실패:", e);
+        showToast("위치 저장에 실패했어요.");
+      } finally {
+        setDraggingItemId(null);
+      }
     },
     [treeId, showToast]
   );
@@ -1112,7 +1115,9 @@ export default function Home() {
                         dragConstraints={treeItemsContainerRef}
                         dragElastic={0}
                         onDragStart={() => handleDragStart(id)}
-                        onDragEnd={(event) => handleDragEnd(id, m, event)}
+                        onDragEnd={(event, info) =>
+                          handleDragEnd(id, m, event, info)
+                        }
                         className="absolute cursor-grab active:cursor-grabbing select-none"
                         style={{
                           left: `${leftPct}%`,
@@ -1140,7 +1145,8 @@ export default function Home() {
                             return;
                           }
                           // ✅ 오너먼트는 언제든 열람 가능, 선물만 타임락
-                          if (type === "gift" && !isGiftUnlocked) {
+                          // Hydration Error 방지: 마운트 후에만 체크
+                          if (type === "gift" && isMounted && !isGiftUnlocked) {
                             showToast(
                               "크리스마스 이브(12/24)부터 열어볼 수 있어요!"
                             );
@@ -1218,10 +1224,13 @@ export default function Home() {
               - 산타 편지 기능 (선물 받기 / 다시 보기 / 업데이트)
               - 내 트리 정보 수정 버튼 (위에 있음)
               ========================================== */}
-            {/* 소유권 확인 중에는 버튼을 숨김 (깜빡임 방지) */}
+            {/* 소유권 확인 중 로딩 UI (스켈레톤) */}
             {isAuthChecking && treeId ? (
               <div className="flex w-full max-w-md flex-col gap-3 items-center justify-center py-8">
-                <div className="text-sm text-slate-600">확인 중...</div>
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-christmas-red border-t-transparent" />
+                <div className="text-sm font-semibold text-slate-600">
+                  트리 정보를 확인하고 있어요...
+                </div>
               </div>
             ) : isOwner && treeId ? (
               <div className="flex w-full max-w-md flex-col gap-3">
@@ -1236,27 +1245,7 @@ export default function Home() {
                         return;
                       }
 
-                      // 프로덕션 도메인 사용 (프리뷰 URL이 아닌 실제 프로덕션 URL)
-                      // Vercel 프리뷰 URL은 인증이 필요하므로 항상 프로덕션 도메인을 사용
-                      // 프로덕션 도메인: Vercel Settings > Domains에서 확인 가능
-                      const PRODUCTION_URL =
-                        process.env.NEXT_PUBLIC_PRODUCTION_URL ||
-                        "https://x-mas-ashy.vercel.app";
-
-                      // 현재 URL이 프리뷰 URL인지 확인 (프리뷰 URL은 긴 해시가 포함됨)
-                      // 또는 항상 프로덕션 URL을 사용하려면 아래 주석을 해제하세요
-                      const isPreviewUrl =
-                        window.location.hostname.includes(".vercel.app") &&
-                        (window.location.hostname.split(".")[0].length > 20 ||
-                          window.location.hostname.includes("-git-"));
-
-                      // 프리뷰 URL이면 프로덕션 URL 사용, 아니면 현재 origin 사용
-                      // 항상 프로덕션 URL을 사용하려면: const baseUrl = PRODUCTION_URL;
-                      const baseUrl = isPreviewUrl
-                        ? PRODUCTION_URL
-                        : window.location.origin;
-
-                      const guestUrl = `${baseUrl}/?tree=${treeId}`;
+                      const guestUrl = getGuestTreeUrl(treeId);
                       await navigator.clipboard.writeText(guestUrl);
                       showToast(
                         "링크가 복사되었어요! 카카오톡 등으로 링크 공유해보세요."
@@ -1489,6 +1478,7 @@ export default function Home() {
         <UnboxModal
           open={isUnboxOpen}
           locked={
+            isMounted &&
             (selectedMessage?.item_type ?? "ornament") === "gift" &&
             !isGiftUnlocked
           }

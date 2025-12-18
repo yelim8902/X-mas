@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { supabase } from "@/utils/supabase";
+import { getBaseUrl } from "@/utils/url";
 
 type Props = {
   open: boolean;
@@ -40,30 +41,8 @@ export function LoginModal({
           : null;
       const redirectPath = myTreeId ? `/?tree=${myTreeId}` : "/";
 
-      // 프로덕션 URL 사용 (프리뷰 URL이나 localhost 대신)
-      const PRODUCTION_URL =
-        process.env.NEXT_PUBLIC_PRODUCTION_URL ||
-        "https://x-mas-ashy.vercel.app";
-
-      // 현재 URL이 프리뷰 URL이거나 localhost인지 확인
-      const isLocalhost =
-        window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1";
-      const isPreviewUrl =
-        window.location.hostname.includes(".vercel.app") &&
-        (window.location.hostname.split(".")[0].length > 20 ||
-          window.location.hostname.includes("-git-"));
-
-      // 프로덕션 도메인인지 확인 (x-mas-ashy.vercel.app)
-      const productionHostname = PRODUCTION_URL.replace(
-        /^https?:\/\//,
-        ""
-      ).split("/")[0];
-      const isProduction = window.location.hostname === productionHostname;
-
-      // 로컬 개발 환경에서만 localhost 사용, 그 외에는 항상 프로덕션 URL 사용
-      // (프로덕션 도메인에서도 명시적으로 프로덕션 URL을 사용하여 Supabase OAuth 설정과 일치시킴)
-      const baseUrl = isLocalhost ? window.location.origin : PRODUCTION_URL;
+      // 유틸리티 함수를 사용하여 base URL 가져오기
+      const baseUrl = getBaseUrl();
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "kakao",

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getProductionUrl } from "@/utils/url";
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -10,8 +11,7 @@ export async function GET(request: NextRequest) {
   const redirectTo = requestUrl.searchParams.get("redirect_to") || "/";
 
   // 프로덕션 URL 사용 (localhost나 프리뷰 URL 대신)
-  const PRODUCTION_URL =
-    process.env.NEXT_PUBLIC_PRODUCTION_URL || "https://x-mas-ashy.vercel.app";
+  const PRODUCTION_URL = getProductionUrl();
 
   // redirectTo가 절대 URL인지 확인
   let finalUrl: URL;
