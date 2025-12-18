@@ -1186,9 +1186,32 @@ export default function Home() {
                       showToast("트리 ID가 없어요.");
                       return;
                     }
-                    const guestUrl = `${window.location.origin}/?tree=${treeId}`;
+
+                    // 프로덕션 도메인 사용 (프리뷰 URL이 아닌 실제 프로덕션 URL)
+                    // Vercel 프리뷰 URL은 인증이 필요하므로 항상 프로덕션 도메인을 사용
+                    // 프로덕션 도메인: Vercel Settings > Domains에서 확인 가능
+                    const PRODUCTION_URL =
+                      process.env.NEXT_PUBLIC_PRODUCTION_URL ||
+                      "https://x-mas-ashy.vercel.app";
+
+                    // 현재 URL이 프리뷰 URL인지 확인 (프리뷰 URL은 긴 해시가 포함됨)
+                    // 또는 항상 프로덕션 URL을 사용하려면 아래 주석을 해제하세요
+                    const isPreviewUrl =
+                      window.location.hostname.includes(".vercel.app") &&
+                      (window.location.hostname.split(".")[0].length > 20 ||
+                        window.location.hostname.includes("-git-"));
+
+                    // 프리뷰 URL이면 프로덕션 URL 사용, 아니면 현재 origin 사용
+                    // 항상 프로덕션 URL을 사용하려면: const baseUrl = PRODUCTION_URL;
+                    const baseUrl = isPreviewUrl
+                      ? PRODUCTION_URL
+                      : window.location.origin;
+
+                    const guestUrl = `${baseUrl}/?tree=${treeId}`;
                     await navigator.clipboard.writeText(guestUrl);
-                    showToast("링크가 복사되었어요! 친구들에게 공유하세요.");
+                    showToast(
+                      "링크가 복사되었어요! 카카오톡 등으로 링크 공유해보세요."
+                    );
                   } catch {
                     showToast("링크 복사에 실패했어요. 주소를 직접 복사해줘.");
                   }
