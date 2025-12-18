@@ -13,6 +13,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
 import { SantaAnalysisModal } from "@/components/SantaAnalysisModal";
 import { LoginModal } from "@/components/LoginModal";
+import { TreeListModal } from "@/components/TreeListModal";
 import { usePathname } from "next/navigation";
 import {
   supabase,
@@ -73,6 +74,10 @@ export default function Home() {
   const [isHostMode, setIsHostMode] = useState(false);
   const [host, setHost] = useState<HostProfile | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [existingUserTreeId, setExistingUserTreeId] = useState<string | null>(
+    null
+  ); // 로그인한 사용자의 기존 트리 ID
+  const [isTreeListOpen, setIsTreeListOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [composeDefaults, setComposeDefaults] = useState<{
@@ -406,28 +411,26 @@ export default function Home() {
         setIsAuthChecking(false);
       }
     } else {
-      // 상태 1: 온보딩 화면 또는 오너 자동 리다이렉트
-      // 로그인한 사용자가 루트로 접속하면 자신의 트리로 자동 리다이렉트
+      // 상태 1: 온보딩 화면
+      // 로그인한 사용자가 루트로 접속하면 기존 트리 ID를 저장하고 온보딩 화면 표시
       if (user?.id) {
         void (async () => {
           const userTreeId = await findUserTree(user.id);
           if (userTreeId) {
-            // 자신의 트리로 자동 리다이렉트
-            const newUrl = `/?tree=${userTreeId}`;
-            window.history.replaceState({}, "", newUrl);
-            setTreeId(userTreeId);
-            setIsAuthChecking(true);
-            // 소유권 확인 (자신의 트리이므로 true가 될 것)
-            void checkTreeOwnership(userTreeId, user.id);
+            // 기존 트리가 있으면 ID만 저장 (온보딩 화면에서 "내 트리 확인하기" 버튼 표시용)
+            setExistingUserTreeId(userTreeId);
           } else {
-            // 트리가 없으면 온보딩 화면 표시
-            setTreeId(null);
-            setIsOwner(false);
-            setIsAuthChecking(false);
+            // 트리가 없으면 null로 설정
+            setExistingUserTreeId(null);
           }
+          // 온보딩 화면 표시를 위해 treeId는 null로 설정
+          setTreeId(null);
+          setIsOwner(false);
+          setIsAuthChecking(false);
         })();
       } else {
         // 로그인하지 않은 사용자는 온보딩 화면
+        setExistingUserTreeId(null);
         setTreeId(null);
         setIsOwner(false);
         setIsAuthChecking(false);
@@ -590,10 +593,16 @@ export default function Home() {
       return;
     }
 
+    // 로그인한 사용자가 루트로 접속했을 때는 온보딩 표시 (기존 트리가 있으면 "내 트리 확인하기" 버튼도 함께 표시)
+    if (user?.id && !urlTree) {
+      setIsOnboardingOpen(true);
+      return;
+    }
+
     // 그 외의 경우: localStorage에 hostProfile이 없으면 온보딩 표시
     const savedHostProfile = window.localStorage.getItem("xmas.hostProfile");
     setIsOnboardingOpen(!savedHostProfile);
-  }, [pathname, treeId, pendingTreeData]);
+  }, [pathname, treeId, pendingTreeData, user?.id]);
 
   useEffect(() => {
     void refetchMessages();
@@ -920,22 +929,9 @@ export default function Home() {
           <div className="mb-4 flex items-center justify-between">
             <motion.button
               type="button"
-              onClick={async () => {
+              onClick={() => {
                 if (!user?.id) return;
-                const userTreeId = await findUserTree(user.id);
-                if (userTreeId) {
-                  const newUrl = `/?tree=${userTreeId}`;
-                  window.history.replaceState({}, "", newUrl);
-                  setTreeId(userTreeId);
-                  setIsAuthChecking(true);
-                  void checkTreeOwnership(userTreeId, user.id);
-                } else {
-                  // 트리가 없으면 루트로 이동하여 온보딩 시작
-                  window.history.replaceState({}, "", "/");
-                  setTreeId(null);
-                  setIsOwner(false);
-                  setIsOnboardingOpen(true);
-                }
+                setIsTreeListOpen(true);
               }}
               whileHover={{ y: -1 }}
               whileTap={{ y: 1, scale: 0.98 }}
@@ -1614,6 +1610,19 @@ export default function Home() {
           open={isOnboardingOpen}
           initial={host ?? undefined}
           availableTreeStyles={availableTreeStyles}
+          hasExistingTree={!!(user?.id && existingUserTreeId)}
+          onViewExistingTree={() => {
+            if (existingUserTreeId) {
+              const newUrl = `/?tree=${existingUserTreeId}`;
+              window.history.replaceState({}, "", newUrl);
+              setTreeId(existingUserTreeId);
+              setIsOnboardingOpen(false);
+              setIsAuthChecking(true);
+              if (user?.id) {
+                void checkTreeOwnership(existingUserTreeId, user.id);
+              }
+            }
+          }}
           onComplete={async (profile) => {
             setHost(profile);
             window.localStorage.setItem(
@@ -1730,6 +1739,23 @@ export default function Home() {
               : "트리를 관리하려면 로그인이 필요해요!"
           }
         />
+
+        {user?.id && (
+          <TreeListModal
+            open={isTreeListOpen}
+            userId={user.id}
+            onClose={() => setIsTreeListOpen(false)}
+            onSelectTree={(treeId) => {
+              const newUrl = `/?tree=${treeId}`;
+              window.history.replaceState({}, "", newUrl);
+              setTreeId(treeId);
+              setIsAuthChecking(true);
+              if (user?.id) {
+                void checkTreeOwnership(treeId, user.id);
+              }
+            }}
+          />
+        )}
       </div>
     </main>
   );

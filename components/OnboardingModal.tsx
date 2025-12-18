@@ -17,6 +17,8 @@ type Props = {
   availableTreeStyles: { key: string; label: string; previewSrc: string }[];
   onClose?: () => void;
   onComplete: (profile: HostProfile) => void;
+  hasExistingTree?: boolean;
+  onViewExistingTree?: () => void;
 };
 
 export function OnboardingModal({
@@ -25,6 +27,8 @@ export function OnboardingModal({
   availableTreeStyles,
   onClose,
   onComplete,
+  hasExistingTree = false,
+  onViewExistingTree,
 }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [gender, setGender] = useState<HostProfile["gender"]>(
@@ -221,7 +225,7 @@ export function OnboardingModal({
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="mt-6 space-y-3">
                 <motion.button
                   type="button"
                   onClick={submit}
@@ -239,6 +243,25 @@ export function OnboardingModal({
                   <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
                   <span className="relative">내 트리 생성하기</span>
                 </motion.button>
+                {hasExistingTree && onViewExistingTree && (
+                  <motion.button
+                    type="button"
+                    onClick={onViewExistingTree}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ y: 1, scale: 0.99 }}
+                    className={[
+                      "relative w-full select-none rounded-clay px-7 py-4 text-base font-extrabold tracking-tight text-slate-700",
+                      "bg-white/60 border border-white/50",
+                      "shadow-clay shadow-clayInset ring-1 ring-white/35 transition-[transform,filter] duration-150 ease-out",
+                      "active:shadow-clayPressed active:translate-y-[1px]",
+                      "hover:bg-white/70",
+                    ].join(" ")}
+                  >
+                    <span className="relative">
+                      내 트리 확인하기 (트리를 이미 만들었어요!)
+                    </span>
+                  </motion.button>
+                )}
               </div>
             </div>
           </motion.div>
