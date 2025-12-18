@@ -12,6 +12,8 @@ import {
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Toast } from "@/components/Toast";
 import { SantaAnalysisModal } from "@/components/SantaAnalysisModal";
+import { LoginModal } from "@/components/LoginModal";
+import { usePathname } from "next/navigation";
 import {
   supabase,
   type GiftColor,
@@ -44,12 +46,20 @@ function hashSeed(input: string) {
 }
 
 export default function Home() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [treeId, setTreeId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(false); // 소유권 확인 중 로딩 상태
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [pendingTreeData, setPendingTreeData] = useState<{
+    profile: HostProfile;
+    treeId: string;
+  } | null>(null);
 
   const santaTimerRef = useRef<number | null>(null);
   const [isSantaVisible, setIsSantaVisible] = useState(false);
@@ -201,44 +211,199 @@ export default function Home() {
     setIsHostMode(params.get("host") === "1");
   }, []);
 
+  // 인증 상태 체크 및 pendingTreeData 복원
   useEffect(() => {
-    // ✅ 오너/게스트 구분 로직: URL의 owner 토큰과 localStorage의 owner_token 비교
+    // localStorage에서 pendingTreeData 복원 (OAuth 콜백 후 페이지 새로고침 시)
+    const savedPendingTreeData =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("xmas.pendingTreeData")
+        : null;
+    if (savedPendingTreeData) {
+      try {
+        const parsed = JSON.parse(savedPendingTreeData);
+        setPendingTreeData(parsed);
+        // 복원 후 localStorage에서 삭제 (한 번만 사용)
+        window.localStorage.removeItem("xmas.pendingTreeData");
+      } catch (e) {
+        console.error("pendingTreeData 복원 실패:", e);
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 로그인 성공 시 대기 중인 트리 데이터 저장
+  useEffect(() => {
+    if (user && pendingTreeData) {
+      void (async () => {
+        try {
+          const { error } = await supabase.from("trees").upsert(
+            {
+              id: pendingTreeData.treeId,
+              host_name: pendingTreeData.profile.name,
+              host_gender: pendingTreeData.profile.gender,
+              host_age: pendingTreeData.profile.age,
+              tree_style: pendingTreeData.profile.treeStyle,
+              user_id: user.id,
+            },
+            { onConflict: "id" }
+          );
+
+          if (error) {
+            console.error("트리 정보 저장 실패:", error);
+            showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
+            setPendingTreeData(null);
+            if (typeof window !== "undefined") {
+              window.localStorage.removeItem("xmas.pendingTreeData");
+            }
+            return;
+          }
+
+          // 성공 시 트리 페이지로 이동 및 오너 권한 설정
+          const savedTreeId = pendingTreeData.treeId;
+
+          // ⚠️ 순서 중요: 트리 저장 직후 즉시 오너 권한 설정
+          // upsert 성공 = 현재 user가 트리의 소유자임을 보장
+          // 상태 업데이트를 한 번에 묶어서 실행
+          setPendingTreeData(null);
+          setIsAuthChecking(false); // 소유권 확인 완료
+          setIsOwner(true); // 즉시 오너로 설정 (DB에 저장했으므로 확실함)
+          setTreeId(savedTreeId);
+
+          // localStorage 정리
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("xmas.pendingTreeData");
+          }
+
+          // URL 변경 (페이지 리로드 없이 상태 업데이트만)
+          const newUrl = `/?tree=${savedTreeId}`;
+          window.history.replaceState({}, "", newUrl);
+
+          showToast("트리가 저장되었어요! 친구들에게 공유해보세요.");
+        } catch (e) {
+          console.error("트리 정보 저장 중 오류:", e);
+          showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
+          setPendingTreeData(null);
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("xmas.pendingTreeData");
+          }
+        }
+      })();
+    }
+  }, [user, pendingTreeData]);
+
+  // 트리 소유권 확인 (Single Source of Truth: Supabase DB를 최우선으로 신뢰)
+  const checkTreeOwnership = useCallback(
+    async (treeId: string) => {
+      // user와 treeId가 모두 준비되었을 때만 DB 조회
+      if (!user || !treeId) {
+        setIsOwner(false);
+        setIsAuthChecking(false);
+        return;
+      }
+
+      setIsAuthChecking(true);
+
+      try {
+        const { data, error } = await supabase
+          .from("trees")
+          .select("user_id")
+          .eq("id", treeId)
+          .single();
+
+        if (error || !data) {
+          setIsOwner(false);
+          setIsAuthChecking(false);
+          return;
+        }
+
+        // DB의 user_id와 현재 로그인한 user.id를 비교하여 소유권 결정
+        setIsOwner(data.user_id === user.id);
+      } catch {
+        setIsOwner(false);
+      } finally {
+        setIsAuthChecking(false);
+      }
+    },
+    [user]
+  );
+
+  useEffect(() => {
+    // ✅ 엄격한 3가지 상태 분기: 온보딩 / 오너 / 게스트
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
-    const urlOwnerToken = params.get("owner");
-    const storedOwnerToken = window.localStorage.getItem("owner_token");
-    const myTree = window.localStorage.getItem("my_tree_id");
 
     if (urlTree) {
-      // URL에 tree 파라미터가 있는 경우
-      setTreeId(urlTree);
+      // 상태 2 또는 3: 트리 페이지 (오너 또는 게스트)
+      // treeId가 변경되면 초기화 (새 트리 로드 시)
+      if (treeId !== urlTree) {
+        setTreeId(urlTree);
+        // 새 트리 로드 시 소유권 확인 필요 (단, pendingTreeData가 있으면 트리 저장 중이므로 제외)
+        if (!pendingTreeData) {
+          setIsOwner(false);
+        }
+      }
 
-      // 오너 판단: URL에 owner 토큰이 있고, localStorage의 owner_token과 일치하며, tree_id도 일치하는 경우
-      const isOwnerTokenValid = Boolean(
-        urlOwnerToken &&
-          storedOwnerToken &&
-          urlOwnerToken === storedOwnerToken &&
-          myTree === urlTree
-      );
-      setIsOwner(isOwnerTokenValid);
-      return;
+      // 트리 소유권 확인 (pendingTreeData가 없고, user와 treeId가 준비되었을 때만)
+      // pendingTreeData가 있으면 트리 저장 중이므로 소유권 확인 건너뛰기
+      if (!pendingTreeData && user && urlTree) {
+        void checkTreeOwnership(urlTree);
+      } else if (!user && urlTree) {
+        // user가 없으면 게스트로 처리
+        setIsOwner(false);
+        setIsAuthChecking(false);
+      }
+    } else {
+      // 상태 1: 온보딩 화면 (treeId가 없음)
+      setTreeId(null);
+      setIsOwner(false);
+      setIsAuthChecking(false);
     }
+  }, [pathname, user, pendingTreeData, checkTreeOwnership, treeId]);
 
-    if (myTree && storedOwnerToken) {
-      // 주인: URL에 tree 파라미터가 없지만 localStorage에 my_tree_id와 owner_token이 있으면 오너용 링크로 자동 진입
-      params.set("tree", myTree);
-      params.set("owner", storedOwnerToken);
-      const next = `${window.location.pathname}?${params.toString()}`;
-      window.history.replaceState({}, "", next);
-      setTreeId(myTree);
-      setIsOwner(true);
-      return;
-    }
+  // 트리 저장 함수 (로그인 후)
+  const saveTreeAfterLogin = useCallback(
+    async (profile: HostProfile, treeId: string, userId: string) => {
+      try {
+        const { error } = await supabase.from("trees").upsert(
+          {
+            id: treeId,
+            host_name: profile.name,
+            host_gender: profile.gender,
+            host_age: profile.age,
+            tree_style: profile.treeStyle,
+            user_id: userId,
+          },
+          { onConflict: "id" }
+        );
 
-    // 아직 트리 생성 전(최초 방문) - 온보딩 완료 시 생성됨
-    setTreeId(null);
-    setIsOwner(false);
-  }, []);
+        if (error) {
+          console.error("트리 정보 저장 실패:", error);
+          showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
+          return;
+        }
+
+        // 성공 시 트리 페이지로 이동
+        setIsOwner(true);
+        window.location.href = `/?tree=${treeId}`;
+        showToast("트리가 저장되었어요! 친구들에게 공유해보세요.");
+      } catch (e) {
+        console.error("트리 정보 저장 중 오류:", e);
+        showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
+      }
+    },
+    []
+  );
 
   // 트리 정보를 Supabase에서 로드하는 함수
   const loadTreeInfo = useCallback(async (id: string) => {
@@ -330,47 +495,27 @@ export default function Home() {
     })();
   }, [treeId, isOwner, loadTreeInfo]);
 
-  // 첫 방문: host profile 없으면 온보딩
+  // 온보딩 화면 표시: URL에 tree 파라미터가 없으면 온보딩
   useEffect(() => {
-    // 게스트는 온보딩 스킵 (URL에 ?tree=... 파라미터가 있고 내 트리가 아닌 경우)
-    if (treeId && !isOwner) return;
+    const params = new URLSearchParams(window.location.search);
+    const urlTree = params.get("tree");
+    const isManagePage = pathname === "/manage";
 
-    // treeId가 null이고 localStorage에 my_tree_id도 없으면 → 첫 방문자 → 온보딩 열기
-    const myTreeId = window.localStorage.getItem("my_tree_id");
-    if (!treeId && !myTreeId) {
-      const raw = window.localStorage.getItem("xmas.hostProfile");
-      if (!raw) {
-        setIsOnboardingOpen(true);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(raw) as HostProfile;
-        if (!parsed?.name) {
-          setIsOnboardingOpen(true);
-        }
-      } catch {
-        setIsOnboardingOpen(true);
-      }
+    // /manage 경로는 비밀번호 모달이 처리하므로 온보딩 표시 안 함
+    if (isManagePage) {
+      setIsOnboardingOpen(false);
       return;
     }
 
-    // 기존 로직: 오너인 경우 hostProfile 확인
-    if (isOwner) {
-      const raw = window.localStorage.getItem("xmas.hostProfile");
-      if (!raw) {
-        setIsOnboardingOpen(true);
-        return;
-      }
-      try {
-        const parsed = JSON.parse(raw) as HostProfile;
-        if (!parsed?.name) {
-          setIsOnboardingOpen(true);
-        }
-      } catch {
-        setIsOnboardingOpen(true);
-      }
+    // URL에 tree 파라미터가 있으면 온보딩 표시 안 함 (게스트 또는 오너 화면)
+    if (urlTree) {
+      setIsOnboardingOpen(false);
+      return;
     }
-  }, [treeId, isOwner]);
+
+    // URL에 tree 파라미터가 없으면 온보딩 표시
+    setIsOnboardingOpen(true);
+  }, [treeId, pathname]);
 
   useEffect(() => {
     void refetchMessages();
@@ -1016,19 +1161,31 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Buttons: Owner vs Guest */}
-          {isOwner ? (
+          {/* ==========================================
+              상태 분기: 오너 화면 (State 2)
+              조건: isOwner === true && treeId !== null && !isAuthChecking
+              필수 요소:
+              - 내 트리 링크 복사하기 버튼
+              - 산타 편지 기능 (선물 받기 / 다시 보기 / 업데이트)
+              - 내 트리 정보 수정 버튼 (위에 있음)
+              ========================================== */}
+          {/* 소유권 확인 중에는 버튼을 숨김 (깜빡임 방지) */}
+          {isAuthChecking && treeId ? (
+            <div className="flex w-full max-w-md flex-col gap-3 items-center justify-center py-8">
+              <div className="text-sm text-slate-600">확인 중...</div>
+            </div>
+          ) : isOwner && treeId ? (
             <div className="flex w-full max-w-md flex-col gap-3">
               <motion.button
                 type="button"
                 onClick={async () => {
                   try {
-                    // 게스트용 링크만 복사 (owner 토큰 제외)
-                    const params = new URLSearchParams(window.location.search);
-                    params.delete("owner"); // owner 토큰 제거
-                    const guestUrl = `${window.location.origin}${
-                      window.location.pathname
-                    }?${params.toString()}`;
+                    // 게스트용 링크 복사: /?tree=xxx 형식
+                    if (!treeId) {
+                      showToast("트리 ID가 없어요.");
+                      return;
+                    }
+                    const guestUrl = `${window.location.origin}/?tree=${treeId}`;
                     await navigator.clipboard.writeText(guestUrl);
                     showToast("링크가 복사되었어요! 친구들에게 공유하세요.");
                   } catch {
@@ -1117,7 +1274,16 @@ export default function Home() {
                 </motion.button>
               )}
             </div>
-          ) : (
+          ) : treeId && !isAuthChecking ? (
+            // ==========================================
+            // 상태 분기: 게스트 화면 (State 3)
+            // 조건: isOwner === false && treeId !== null && !isAuthChecking
+            // 필수 요소:
+            // - "OOO님의 트리입니다" (이미 위에 표시됨)
+            // - 오너먼트 달기 / 선물 주기 버튼 (메시지 남기기)
+            // - 나도 트리 만들기 버튼 (아래에 있음)
+            // - 주의: 오너 전용 기능(링크 복사, 트리 수정)은 절대 표시하지 않음
+            // ==========================================
             <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:gap-4">
               <motion.button
                 type="button"
@@ -1164,13 +1330,47 @@ export default function Home() {
                 <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
               </motion.button>
             </div>
-          )}
+          ) : // ==========================================
+          // 상태 분기: 온보딩 화면 (State 1)
+          // 조건: treeId === null
+          // 필수 요소:
+          // - 트리 꾸미기 도구 (아이템 선택, 색상 변경 등) - 온보딩 모달에서 제공
+          // - 온보딩 모달이 열려있음 (트리 정보 입력)
+          // - 온보딩 완료 후 "카카오로 1초 만에 저장하고 링크 만들기" 버튼 (로그인 유도)
+          // ==========================================
+          // 온보딩 화면에서는 게스트/오너 버튼들을 숨김
+          // 온보딩 모달에서 트리 정보 입력 완료 후 로그인 유도
+          null}
+
+          {/* 게스트 화면 전용: 나도 트리 만들기 버튼 */}
+          {!isOwner && treeId ? (
+            <div className="mt-4 flex w-full max-w-md justify-center">
+              <motion.button
+                type="button"
+                onClick={() => {
+                  // 루트 URL로 이동하여 온보딩 시작
+                  window.location.href = window.location.origin;
+                }}
+                whileHover={{ y: -1 }}
+                whileTap={{ y: 1, scale: 0.98 }}
+                className={[
+                  "group relative select-none rounded-2xl px-6 py-3 text-sm font-extrabold tracking-tight text-slate-700",
+                  "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
+                  "transition-[transform,box-shadow] duration-150 ease-out",
+                ].join(" ")}
+              >
+                <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                <span className="relative">나도 트리 만들기</span>
+              </motion.button>
+            </div>
+          ) : null}
 
           <p className="max-w-md text-center text-sm text-slate-600 sm:text-base">
             {isOwner ? (
               messages.length === 0 ? (
                 <>
-                  아직 아무도 꾸미지 않았어요.{" "}
+                  아직 아무도 꾸미지 않았어요.
+                  <br />
                   <span className="font-semibold">링크를 복사해서</span>{" "}
                   친구들에게 공유해봐요!
                 </>
@@ -1229,7 +1429,8 @@ export default function Home() {
             "xmas.hostProfile",
             JSON.stringify(profile)
           );
-          // ✅ 트리 생성(Create): tree_id와 owner_token 생성 후 localStorage 저장 + URL에 반영
+
+          // ✅ 트리 ID 생성 (임시로 localStorage에 저장)
           let myTree = window.localStorage.getItem("my_tree_id");
           if (!myTree) {
             myTree =
@@ -1239,45 +1440,31 @@ export default function Home() {
             window.localStorage.setItem("my_tree_id", myTree);
           }
 
-          // 오너 토큰 생성 (오너 전용 링크용)
-          let ownerToken = window.localStorage.getItem("owner_token");
-          if (!ownerToken) {
-            ownerToken =
-              typeof crypto !== "undefined" && "randomUUID" in crypto
-                ? crypto.randomUUID()
-                : String(Date.now() + Math.random());
-            window.localStorage.setItem("owner_token", ownerToken);
-          }
-
-          // 오너용 링크로 설정 (tree + owner 토큰만 포함)
-          const newParams = new URLSearchParams();
-          newParams.set("tree", myTree);
-          newParams.set("owner", ownerToken);
-          const next = `${window.location.pathname}?${newParams.toString()}`;
-          window.history.replaceState({}, "", next);
+          // 트리 ID 설정하여 화면에 표시
           setTreeId(myTree);
-          setIsOwner(true);
-
-          // ✅ 트리 정보를 Supabase에 저장/업데이트
-          try {
-            const { error } = await supabase.from("trees").upsert(
-              {
-                id: myTree,
-                host_name: profile.name,
-                host_gender: profile.gender,
-                host_age: profile.age,
-                tree_style: profile.treeStyle,
-              },
-              { onConflict: "id" }
-            );
-            if (error) {
-              console.error("트리 정보 저장 실패:", error);
-            }
-          } catch (e) {
-            console.error("트리 정보 저장 중 오류:", e);
-          }
-
           setIsOnboardingOpen(false);
+
+          // 로그인 상태 확인
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (session?.user) {
+            // 이미 로그인되어 있으면 바로 저장
+            await saveTreeAfterLogin(profile, myTree, session.user.id);
+          } else {
+            // 로그인 필요: pendingTreeData를 state와 localStorage에 모두 저장
+            // (OAuth 콜백 후 페이지 새로고침 시 복원을 위해)
+            const pendingData = { profile, treeId: myTree };
+            setPendingTreeData(pendingData);
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(
+                "xmas.pendingTreeData",
+                JSON.stringify(pendingData)
+              );
+            }
+            setIsLoginModalOpen(true);
+          }
         }}
         onClose={
           host
@@ -1334,6 +1521,23 @@ export default function Home() {
         hostName={host?.name}
         treeContainerRef={treeContainerRef}
         onToast={showToast}
+      />
+
+      <LoginModal
+        open={isLoginModalOpen}
+        canClose={!pendingTreeData} // pendingTreeData가 있으면 닫기 버튼 비활성화
+        onClose={() => {
+          setIsLoginModalOpen(false);
+        }}
+        onSuccess={() => {
+          setIsLoginModalOpen(false);
+          // 로그인 성공은 onAuthStateChange에서 처리됨
+        }}
+        message={
+          pendingTreeData
+            ? "나중에 다시 수정하거나 친구들의 메시지를 확인하려면 로그인이 필요해요!"
+            : "트리를 관리하려면 로그인이 필요해요!"
+        }
       />
     </main>
   );

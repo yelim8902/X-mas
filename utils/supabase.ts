@@ -45,6 +45,7 @@ export type TreeRow = {
   host_gender: "female" | "male" | "nonbinary" | "other";
   host_age: number;
   tree_style: string;
+  user_id?: string | null; // Supabase Auth user.id
   created_at: string;
   updated_at: string;
 };
