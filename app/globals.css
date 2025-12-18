@@ -15,3 +15,47 @@ body {
     BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto, Helvetica,
     Arial, "Noto Sans", "Liberation Sans", sans-serif;
 }
+
+/* 커스텀 스크롤바 스타일 - 크리스마스 느낌 */
+* {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(220, 38, 38, 0.3) rgba(255, 255, 255, 0.1);
+}
+
+/* Webkit 브라우저 (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    rgba(220, 38, 38, 0.6) 0%,
+    rgba(16, 185, 129, 0.6) 100%
+  );
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(220, 38, 38, 0.8) 0%,
+    rgba(16, 185, 129, 0.8) 100%
+  );
+}
+
+/* 모바일에서 더 얇은 스크롤바 */
+@media (max-width: 640px) {
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+}
