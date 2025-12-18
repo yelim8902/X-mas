@@ -108,7 +108,16 @@ export function GlobalNavBar({ user, isOwner, hostName, treeId }: Props) {
           ) : (
             <motion.button
               type="button"
-              onClick={() => router.push("/")}
+              onClick={() => {
+                // localStorage 완전 정리 후 완전 새로고침
+                if (typeof window !== "undefined") {
+                  window.localStorage.removeItem("my_tree_id");
+                  window.localStorage.removeItem("xmas.hostProfile");
+                  window.localStorage.removeItem("xmas.pendingTreeData");
+                  // 완전 새로고침하여 온보딩 모달이 뜨게 함
+                  window.location.href = "/";
+                }
+              }}
               whileHover={{ y: -1 }}
               whileTap={{ y: 1, scale: 0.98 }}
               className="rounded-xl bg-white/80 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-sm ring-1 ring-white/45 backdrop-blur-sm transition-colors hover:bg-white/90"

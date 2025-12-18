@@ -32,6 +32,18 @@ export default function LandingPage() {
     window.setTimeout(() => setToast((t) => ({ ...t, open: false })), 2200);
   }, []);
 
+  // 새 트리 만들기: localStorage 정리 후 완전 새로고침
+  const handleCreateNewTree = useCallback(() => {
+    if (typeof window !== "undefined") {
+      // localStorage 완전 정리
+      window.localStorage.removeItem("my_tree_id");
+      window.localStorage.removeItem("xmas.hostProfile");
+      window.localStorage.removeItem("xmas.pendingTreeData");
+      // 완전 새로고침하여 온보딩 모달이 뜨게 함
+      window.location.href = "/";
+    }
+  }, []);
+
   useEffect(() => {
     // localStorage에서 pendingTreeData 복원 (OAuth 콜백 후)
     const savedPendingTreeData =
@@ -76,7 +88,7 @@ export default function LandingPage() {
     }
   }, [isLoading, router]);
 
-  // 로그인한 사용자가 루트로 접속하면 대시보드로 리다이렉트
+  // 로그인한 사용자가 루트로 접속하면 대시보드로 리다이렉트 (단, OAuth 콜백이나 redirect_to가 있을 때만)
   useEffect(() => {
     if (!isLoading && user?.id && !pendingTreeData) {
       // OAuth 콜백에서 login_success 파라미터 확인
@@ -88,6 +100,7 @@ export default function LandingPage() {
       // tree 파라미터가 있으면 이미 위에서 처리됨
       if (treeParam) return;
 
+      // OAuth 콜백이거나 redirect_to가 있을 때만 자동 리다이렉트
       if (loginSuccess === "true") {
         showToast("로그인이 완료되었어요!");
         // URL에서 login_success 파라미터 제거하고 리다이렉트
@@ -99,10 +112,8 @@ export default function LandingPage() {
       } else if (redirectTo) {
         // redirect_to가 있으면 해당 경로로 이동
         router.push(redirectTo);
-      } else {
-        // redirect_to가 없으면 대시보드로
-        router.push(getDashboardPath());
       }
+      // redirect_to가 없으면 랜딩 페이지에 머물러서 새 트리 만들기 가능
     }
   }, [isLoading, user, pendingTreeData, router, showToast]);
 
@@ -143,8 +154,8 @@ export default function LandingPage() {
     }
   }, [user, pendingTreeData, router]);
 
-  // 로딩 중이거나 로그인한 사용자는 리다이렉트 처리 중
-  if (isLoading || (user?.id && !pendingTreeData)) {
+  // 로딩 중
+  if (isLoading) {
     return (
       <main className="relative flex min-h-dvh items-center justify-center overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-skyPastel-50 via-skyPastel-100 to-skyPastel-200" />
@@ -153,7 +164,7 @@ export default function LandingPage() {
     );
   }
 
-  // 비로그인 사용자: 온보딩 화면
+  // 랜딩 페이지: 로그인 여부와 관계없이 온보딩 화면 표시
   return (
     <main className="relative min-h-dvh overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-skyPastel-50 via-skyPastel-100 to-skyPastel-200" />
@@ -200,7 +211,7 @@ export default function LandingPage() {
         hasExistingTree={false}
         onViewExistingTree={() => {}}
         onComplete={async (profile) => {
-          // 트리 ID 생성
+          // 항상 새로운 트리 ID 생성 (다중 트리 지원)
           const treeId =
             typeof crypto !== "undefined" && "randomUUID" in crypto
               ? crypto.randomUUID()
@@ -212,7 +223,10 @@ export default function LandingPage() {
           } = await supabase.auth.getSession();
 
           if (session?.user) {
-            // 이미 로그인되어 있으면 바로 저장하고 트리 페이지로 이동
+            // 로그인되어 있으면 바로 저장하고 트리 페이지로 이동
+            setIsOnboardingOpen(false); // 모달 닫기
+            setIsLoading(true); // 로딩 스피너 표시
+
             try {
               const { error } = await supabase.from("trees").upsert(
                 {
@@ -228,11 +242,18 @@ export default function LandingPage() {
 
               if (error) throw error;
 
-              showToast("트리가 저장되었어요! 친구들에게 공유해보세요.");
+              // localStorage에 새 트리 ID 저장 (선택적)
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem("my_tree_id", treeId);
+              }
+
+              showToast("트리가 생성되었어요! 친구들에게 공유해보세요.");
+              // 새 트리 페이지로 자동 이동
               router.push(getTreePath(treeId));
             } catch (e) {
               console.error("트리 저장 실패:", e);
               showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
+              setIsLoading(false);
             }
           } else {
             // 로그인 필요: pendingTreeData 저장

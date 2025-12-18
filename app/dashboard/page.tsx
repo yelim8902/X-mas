@@ -77,7 +77,14 @@ export default function DashboardPage() {
   };
 
   const handleCreateTree = () => {
-    router.push("/");
+    // localStorage 완전 정리 후 완전 새로고침
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("my_tree_id");
+      window.localStorage.removeItem("xmas.hostProfile");
+      window.localStorage.removeItem("xmas.pendingTreeData");
+      // 완전 새로고침하여 온보딩 모달이 뜨게 함
+      window.location.href = "/";
+    }
   };
 
   if (!user) {

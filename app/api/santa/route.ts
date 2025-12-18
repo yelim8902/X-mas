@@ -84,38 +84,54 @@ export async function POST(req: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // 요청: 1) gemini-1.5-flash-001 우선 2) 실패 시 gemini-pro
-    const preferredModel = process.env.GEMINI_MODEL ?? "gemini-1.5-flash-001";
+
+    // 기본 모델: gemini-1.5-flash (가장 안정적이고 빠름)
+    const defaultModel = "gemini-1.5-flash";
+    const preferredModel = process.env.GEMINI_MODEL ?? defaultModel;
+
+    // 최소한의 fallback 후보만 유지 (안정성 우선)
     const modelCandidates = [
       preferredModel,
-      "gemini-pro",
-      // fallback candidates (프로젝트/계정에 따라 노출 모델이 다를 수 있음)
-      // 최신 계정에서 1.0/1.5가 막혀있는 경우가 있어 2.x를 우선 시도
-      "gemini-2.0-flash",
-      "gemini-2.0-flash-lite",
-      "gemini-2.0-pro",
-      "gemini-2.5-flash",
-      "gemini-2.5-pro",
-      // legacy(열려있으면 동작)
-      "gemini-1.5-flash",
-      "gemini-1.5-pro",
-      "gemini-1.0-pro",
+      defaultModel, // 환경변수가 다른 값이어도 기본값 보장
+      "gemini-1.5-pro", // fallback 1: 더 강력한 모델
+      "gemini-pro", // fallback 2: 레거시 호환
     ];
+
+    console.error("[Santa API] Starting Gemini request", {
+      preferredModel,
+      candidates: modelCandidates,
+      messageCount: msgs.length,
+      hostName: displayName,
+    });
 
     let text = "";
     let lastErr: unknown = null;
+    let successfulModel: string | null = null;
+
     for (const modelName of modelCandidates) {
       try {
+        console.error(`[Santa API] Attempting model: ${modelName}`);
         const model = genAI.getGenerativeModel({
           model: modelName,
           systemInstruction: systemPrompt,
         });
         const result = await model.generateContent(userPrompt);
         text = result.response.text();
+        successfulModel = modelName;
+        console.error(`[Santa API] Success with model: ${modelName}`, {
+          responseLength: text.length,
+        });
         lastErr = null;
         break;
       } catch (e) {
         lastErr = e;
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        const errorStack = e instanceof Error ? e.stack : undefined;
+        console.error(`[Santa API] Model ${modelName} failed:`, {
+          error: errorMessage,
+          stack: errorStack,
+          errorType: e?.constructor?.name,
+        });
         // 다음 후보로 계속 시도
       }
     }
@@ -123,7 +139,20 @@ export async function POST(req: Request) {
     if (!text) {
       const detail =
         lastErr instanceof Error ? lastErr.message : String(lastErr);
+      const errorStack = lastErr instanceof Error ? lastErr.stack : undefined;
+
+      console.error("[Santa API] All models failed", {
+        tried: modelCandidates,
+        lastError: detail,
+        lastErrorStack: errorStack,
+        apiKeyPresent: !!apiKey,
+        apiKeyPrefix: apiKey ? `${apiKey.substring(0, 8)}...` : "missing",
+      });
+
+      // API 키 권한 확인을 위한 상세 정보 수집
       const models = await listAvailableModels(apiKey);
+      console.error("[Santa API] Available models check:", models);
+
       return NextResponse.json(
         {
           error:
@@ -136,12 +165,28 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
     const jsonText = extractJson(text);
+    console.error("[Santa API] Extracted JSON text", {
+      length: jsonText.length,
+      preview: jsonText.substring(0, 200),
+    });
 
     let parsed: any;
     try {
       parsed = JSON.parse(jsonText);
-    } catch {
+      console.error("[Santa API] Successfully parsed JSON", {
+        hasSummary: !!parsed.summary,
+        hasGiftKeyword: !!parsed.gift_keyword,
+        model: successfulModel,
+      });
+    } catch (parseError) {
+      console.error("[Santa API] JSON parse failed", {
+        error:
+          parseError instanceof Error ? parseError.message : String(parseError),
+        jsonText,
+        rawText: text,
+      });
       return NextResponse.json(
         { error: "Failed to parse Gemini JSON", raw: text },
         { status: 500 }
@@ -154,9 +199,13 @@ export async function POST(req: Request) {
       raw: text,
     });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Gemini request failed" },
-      { status: 500 }
-    );
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    const errorStack = e instanceof Error ? e.stack : undefined;
+    console.error("[Santa API] Unexpected error", {
+      error: errorMessage,
+      stack: errorStack,
+      errorType: e?.constructor?.name,
+    });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
