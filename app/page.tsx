@@ -202,7 +202,17 @@ export default function LandingPage() {
 
       <OnboardingModal
         open={isOnboardingOpen}
-        initial={undefined}
+        initial={
+          user?.user_metadata?.full_name || user?.user_metadata?.name
+            ? {
+                name:
+                  user.user_metadata.full_name || user.user_metadata.name || "",
+                gender: "other" as const,
+                age: 20,
+                treeStyle: "tree1.png",
+              }
+            : undefined
+        }
         availableTreeStyles={[
           {
             key: "tree1.png",

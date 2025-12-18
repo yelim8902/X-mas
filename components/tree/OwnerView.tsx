@@ -75,6 +75,26 @@ export function OwnerView({
         내 트리 목록으로 가기
       </motion.button>
 
+      {/* 새 트리 만들기 버튼 */}
+      <motion.button
+        type="button"
+        onClick={() => {
+          // localStorage 완전 정리 후 완전 새로고침 (온보딩 모달 자동 열기)
+          if (typeof window !== "undefined") {
+            window.localStorage.removeItem("my_tree_id");
+            window.localStorage.removeItem("xmas.hostProfile");
+            window.localStorage.removeItem("xmas.pendingTreeData");
+            // create 파라미터와 함께 완전 새로고침하여 온보딩 모달이 바로 뜨게 함
+            window.location.href = "/?create=true";
+          }
+        }}
+        whileHover={{ y: -1 }}
+        whileTap={{ y: 1, scale: 0.98 }}
+        className="rounded-2xl bg-christmas-green/90 px-4 py-2 text-sm font-extrabold text-white shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-christmas-green/45 backdrop-blur-md"
+      >
+        새 트리 만들기
+      </motion.button>
+
       {/* 3단계 버튼 상태: 초기 / 완료 / 업데이트 */}
       {savedSanta ? (
         // 완료 상태 또는 업데이트 상태

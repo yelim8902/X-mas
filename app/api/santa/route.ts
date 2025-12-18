@@ -85,20 +85,10 @@ export async function POST(req: Request) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // 기본 모델: gemini-1.5-flash (가장 안정적이고 빠름)
-    const defaultModel = "gemini-1.5-flash";
-    const preferredModel = process.env.GEMINI_MODEL ?? defaultModel;
-
-    // 최소한의 fallback 후보만 유지 (안정성 우선)
-    const modelCandidates = [
-      preferredModel,
-      defaultModel, // 환경변수가 다른 값이어도 기본값 보장
-      "gemini-1.5-pro", // fallback 1: 더 강력한 모델
-      "gemini-pro", // fallback 2: 레거시 호환
-    ];
+    // 안정적인 모델만 사용: gemini-1.5-flash를 1순위로
+    const modelCandidates = ["gemini-1.5-flash", "gemini-1.5-pro"];
 
     console.error("[Santa API] Starting Gemini request", {
-      preferredModel,
       candidates: modelCandidates,
       messageCount: msgs.length,
       hostName: displayName,
