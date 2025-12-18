@@ -54,9 +54,16 @@ export function LoginModal({
         (window.location.hostname.split(".")[0].length > 20 ||
           window.location.hostname.includes("-git-"));
 
-      // localhost나 프리뷰 URL이면 프로덕션 URL 사용
-      const baseUrl =
-        isLocalhost || isPreviewUrl ? PRODUCTION_URL : window.location.origin;
+      // 프로덕션 도메인인지 확인 (x-mas-ashy.vercel.app)
+      const productionHostname = PRODUCTION_URL.replace(
+        /^https?:\/\//,
+        ""
+      ).split("/")[0];
+      const isProduction = window.location.hostname === productionHostname;
+
+      // 로컬 개발 환경에서만 localhost 사용, 그 외에는 항상 프로덕션 URL 사용
+      // (프로덕션 도메인에서도 명시적으로 프로덕션 URL을 사용하여 Supabase OAuth 설정과 일치시킴)
+      const baseUrl = isLocalhost ? window.location.origin : PRODUCTION_URL;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "kakao",
