@@ -356,6 +356,27 @@ export default function Home() {
     []
   );
 
+  // 로그인한 사용자의 트리 찾기 (자동 리다이렉트용)
+  const findUserTree = useCallback(async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("trees")
+        .select("id")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (error || !data) {
+        return null;
+      }
+
+      return data.id as string;
+    } catch {
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     // ✅ 통합된 상태 관리: 온보딩 / 오너 / 게스트
     const params = new URLSearchParams(window.location.search);
@@ -385,12 +406,34 @@ export default function Home() {
         setIsAuthChecking(false);
       }
     } else {
-      // 상태 1: 온보딩 화면 (treeId가 없음)
-      setTreeId(null);
-      setIsOwner(false);
-      setIsAuthChecking(false);
+      // 상태 1: 온보딩 화면 또는 오너 자동 리다이렉트
+      // 로그인한 사용자가 루트로 접속하면 자신의 트리로 자동 리다이렉트
+      if (user?.id) {
+        void (async () => {
+          const userTreeId = await findUserTree(user.id);
+          if (userTreeId) {
+            // 자신의 트리로 자동 리다이렉트
+            const newUrl = `/?tree=${userTreeId}`;
+            window.history.replaceState({}, "", newUrl);
+            setTreeId(userTreeId);
+            setIsAuthChecking(true);
+            // 소유권 확인 (자신의 트리이므로 true가 될 것)
+            void checkTreeOwnership(userTreeId, user.id);
+          } else {
+            // 트리가 없으면 온보딩 화면 표시
+            setTreeId(null);
+            setIsOwner(false);
+            setIsAuthChecking(false);
+          }
+        })();
+      } else {
+        // 로그인하지 않은 사용자는 온보딩 화면
+        setTreeId(null);
+        setIsOwner(false);
+        setIsAuthChecking(false);
+      }
     }
-  }, [pathname, user, pendingTreeData, checkTreeOwnership, treeId]);
+  }, [pathname, user, pendingTreeData, checkTreeOwnership, treeId, findUserTree]);
 
   // 트리 저장 함수 (로그인 후)
   const saveTreeAfterLogin = useCallback(
