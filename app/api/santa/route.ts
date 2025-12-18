@@ -48,11 +48,17 @@ function extractJson(text: string) {
 export async function POST(req: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
+    console.error("[Santa API] GEMINI_API_KEY is missing");
     return NextResponse.json(
       { error: "Missing GEMINI_API_KEY in server env" },
       { status: 500 }
     );
   }
+
+  console.error("[Santa API] API key present:", {
+    keyLength: apiKey.length,
+    keyPrefix: apiKey.substring(0, 8) + "...",
+  });
 
   const body = (await req.json()) as ReqBody;
   const hostName = (body.hostName ?? "").trim();
@@ -86,13 +92,7 @@ export async function POST(req: Request) {
     const genAI = new GoogleGenerativeAI(apiKey);
 
     // 안정적인 모델만 사용: gemini-1.5-flash를 1순위로
-    // 모델 이름 정확성 확인: 최신 버전은 -001, -002 등의 suffix가 있을 수 있음
-    const modelCandidates = [
-      "gemini-1.5-flash-001", // 최신 버전 시도
-      "gemini-1.5-flash", // 레거시 이름
-      "gemini-1.5-pro-001", // 최신 버전 시도
-      "gemini-1.5-pro", // 레거시 이름
-    ];
+    const modelCandidates = ["gemini-1.5-flash", "gemini-1.5-pro"];
 
     console.error("[Santa API] Starting Gemini request", {
       candidates: modelCandidates,
@@ -149,17 +149,23 @@ export async function POST(req: Request) {
       const models = await listAvailableModels(apiKey);
       console.error("[Santa API] Available models check:", models);
 
-      return NextResponse.json(
-        {
-          error:
-            "Gemini request failed (no working model). Your API key may not have access to Generative Language models, or you might be using a wrong kind of key.",
-          tried: modelCandidates,
-          last_error: detail,
-          models,
-          hint: "If models.v1beta/v1 shows 403, enable Generative Language API / check key restrictions. If it shows empty or 404, the key is likely not an AI Studio (Generative Language) key.",
-        },
-        { status: 500 }
+      // 에러 상세 정보를 클라이언트에 전달 (디버깅용)
+      const errorResponse = {
+        error:
+          "Gemini request failed (no working model). Your API key may not have access to Generative Language models, or you might be using a wrong kind of key.",
+        tried: modelCandidates,
+        last_error: detail,
+        models,
+        hint: "If models.v1beta/v1 shows 403, enable Generative Language API / check key restrictions. If it shows empty or 404, the key is likely not an AI Studio (Generative Language) key.",
+      };
+
+      // 서버 로그에 상세 정보 출력
+      console.error(
+        "[Santa API] Full error response:",
+        JSON.stringify(errorResponse, null, 2)
       );
+
+      return NextResponse.json(errorResponse, { status: 500 });
     }
 
     const jsonText = extractJson(text);
