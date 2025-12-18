@@ -392,8 +392,24 @@ export default function TreePage() {
         gift_keyword?: string;
         raw?: string;
         error?: string;
+        tried?: string[];
+        last_error?: string;
+        models?: any;
+        hint?: string;
       };
-      if (!res.ok) throw new Error(json.error || "AI 분석 실패");
+      if (!res.ok) {
+        // 에러 상세 정보를 raw에 저장하여 사용자에게 표시
+        const errorDetails = [
+          json.error || "AI 분석 실패",
+          json.hint ? `힌트: ${json.hint}` : "",
+          json.tried ? `시도한 모델: ${json.tried.join(", ")}` : "",
+          json.last_error ? `마지막 에러: ${json.last_error}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n");
+        setSantaRaw(errorDetails);
+        throw new Error(json.error || "AI 분석 실패");
+      }
       setSantaSummary(json.summary);
       setSantaGift(json.gift_keyword);
       setSantaRaw(json.raw);
