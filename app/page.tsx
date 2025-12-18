@@ -1445,63 +1445,12 @@ export default function Home() {
               // 조건: isOwner === false && treeId !== null && !isAuthChecking
               // 필수 요소:
               // - "OOO님의 트리입니다" (이미 위에 표시됨)
-              // - 로그인한 사용자에게만 "내 트리 확인하기" 버튼 표시
               // - 오너먼트 달기 / 선물 주기 버튼 (메시지 남기기)
               // - 나도 트리 만들기 버튼 (아래에 있음)
               // - 주의: 오너 전용 기능(링크 복사, 트리 수정)은 절대 표시하지 않음
+              // - 주의: "내 트리 확인하기" 버튼은 상단 네비게이션에 있으므로 여기서는 제거
               // ==========================================
               <div className="flex w-full max-w-md flex-col gap-3">
-                {/* 로그인한 사용자에게만 "내 트리 확인하기" 버튼 표시 */}
-                {user && (
-                  <motion.button
-                    type="button"
-                    onClick={async () => {
-                      if (!user?.id) return;
-                      const userTreeId = await findUserTree(user.id);
-                      if (userTreeId) {
-                        const newUrl = `/?tree=${userTreeId}`;
-                        window.history.replaceState({}, "", newUrl);
-                        setTreeId(userTreeId);
-                        setIsAuthChecking(true);
-                        void checkTreeOwnership(userTreeId, user.id);
-                      } else {
-                        // 트리가 없으면 루트로 이동하여 온보딩 시작
-                        window.history.replaceState({}, "", "/");
-                        setTreeId(null);
-                        setIsOwner(false);
-                        setIsOnboardingOpen(true);
-                      }
-                    }}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ y: 1, scale: 0.99 }}
-                    className={[
-                      "group relative w-full select-none rounded-clay px-6 py-4 text-base font-extrabold tracking-tight text-white",
-                      "bg-gradient-to-b from-slate-600 to-slate-700",
-                      "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                      "transition-[transform,box-shadow] duration-150 ease-out",
-                      "active:shadow-clayPressed active:translate-y-[1px]",
-                    ].join(" ")}
-                  >
-                    <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/20 to-transparent opacity-70" />
-                    <span className="relative flex items-center justify-center gap-2">
-                      <svg
-                        width="18"
-                        height="18"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                        <polyline points="9 22 9 12 15 12 15 22" />
-                      </svg>
-                      내 트리 확인하기
-                    </span>
-                  </motion.button>
-                )}
-
                 <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4">
                   <motion.button
                     type="button"
