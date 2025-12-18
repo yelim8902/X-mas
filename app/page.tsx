@@ -72,6 +72,7 @@ export default function Home() {
   const [isUnboxOpen, setIsUnboxOpen] = useState(false);
   const [isHostMode, setIsHostMode] = useState(false);
   const [host, setHost] = useState<HostProfile | null>(null);
+  const [treeOwnerId, setTreeOwnerId] = useState<string | null>(null); // 트리 오너 ID 저장
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isResetOpen, setIsResetOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -486,10 +487,14 @@ export default function Home() {
 
     if (error || !data) {
       // 트리 정보가 없으면 null로 설정 (기본 트리 표시)
+      setTreeOwnerId(null);
       return null;
     }
 
     const tree = data as TreeRow;
+    // 오너 ID 저장
+    setTreeOwnerId(tree.user_id ?? null);
+    
     const hostProfile: HostProfile = {
       name: tree.host_name,
       gender: tree.host_gender,
@@ -998,16 +1003,23 @@ export default function Home() {
                     )}
                   </p>
                   {host ? (
-                    <p className="mt-0.5 text-xs font-semibold text-slate-600">
-                      {host.gender === "female"
-                        ? "여성"
-                        : host.gender === "male"
-                        ? "남성"
-                        : host.gender === "nonbinary"
-                        ? "논바이너리"
-                        : "비공개"}{" "}
-                      · {host.age}살
-                    </p>
+                    <div className="mt-0.5">
+                      <p className="text-xs font-semibold text-slate-600">
+                        {host.gender === "female"
+                          ? "여성"
+                          : host.gender === "male"
+                          ? "남성"
+                          : host.gender === "nonbinary"
+                          ? "논바이너리"
+                          : "비공개"}{" "}
+                        · {host.age}살
+                      </p>
+                      {treeOwnerId && (isDebugMode || isOwner) ? (
+                        <p className="mt-1 text-[10px] font-mono text-slate-400">
+                          오너 ID: {treeOwnerId}
+                        </p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               </div>
