@@ -208,8 +208,7 @@ export function SantaAnalysisModal({
                   AI 산타의 한 해 분석
                 </p>
                 <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-600">
-                  친구들의 메시지를 모아 따뜻하게 요약하고, 무형의 선물을
-                  처방해요.
+                  산타가 친구들의 메시지를 모아 무형의 선물을 처방해요.
                 </p>
               </div>
               <motion.button

@@ -246,6 +246,8 @@ export default function Home() {
   useEffect(() => {
     if (user && pendingTreeData) {
       void (async () => {
+        setIsAuthChecking(true); // 로딩 시작
+
         try {
           const { error } = await supabase.from("trees").upsert(
             {
@@ -263,29 +265,39 @@ export default function Home() {
             console.error("트리 정보 저장 실패:", error);
             showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
             setPendingTreeData(null);
+            setIsAuthChecking(false);
             if (typeof window !== "undefined") {
               window.localStorage.removeItem("xmas.pendingTreeData");
             }
             return;
           }
 
-          // 성공 시 트리 페이지로 이동 및 오너 권한 설정
+          // ✅ 성공: 모든 상태를 한 번에 업데이트
           const savedTreeId = pendingTreeData.treeId;
+          const savedProfile = pendingTreeData.profile;
 
-          // ⚠️ 순서 중요: 트리 저장 직후 즉시 오너 권한 설정
-          // upsert 성공 = 현재 user가 트리의 소유자임을 보장
-          // 상태 업데이트를 한 번에 묶어서 실행
-          setPendingTreeData(null);
-          setIsAuthChecking(false); // 소유권 확인 완료
-          setIsOwner(true); // 즉시 오너로 설정 (DB에 저장했으므로 확실함)
+          // 1. 트리 정보 설정
+          setHost(savedProfile);
           setTreeId(savedTreeId);
 
-          // localStorage 정리
+          // 2. 오너 권한 설정 (DB에 저장했으므로 확실함)
+          setIsOwner(true);
+          setIsAuthChecking(false);
+
+          // 3. pendingTreeData 정리
+          setPendingTreeData(null);
+
+          // 4. localStorage 정리 및 업데이트
           if (typeof window !== "undefined") {
             window.localStorage.removeItem("xmas.pendingTreeData");
+            window.localStorage.setItem("my_tree_id", savedTreeId);
+            window.localStorage.setItem(
+              "xmas.hostProfile",
+              JSON.stringify(savedProfile)
+            );
           }
 
-          // URL 변경 (페이지 리로드 없이 상태 업데이트만)
+          // 5. URL 업데이트 (페이지 리로드 없이)
           const newUrl = `/?tree=${savedTreeId}`;
           window.history.replaceState({}, "", newUrl);
 
@@ -294,6 +306,7 @@ export default function Home() {
           console.error("트리 정보 저장 중 오류:", e);
           showToast("트리 저장에 실패했어요. 다시 시도해주세요.");
           setPendingTreeData(null);
+          setIsAuthChecking(false);
           if (typeof window !== "undefined") {
             window.localStorage.removeItem("xmas.pendingTreeData");
           }
@@ -343,20 +356,22 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
 
+    // pendingTreeData가 있으면 트리 저장 중이므로 소유권 확인 건너뛰기
+    // 트리 저장이 완료되면 pendingTreeData가 null이 되고, 그때 다시 이 useEffect가 실행됨
+    if (pendingTreeData) {
+      return;
+    }
+
     if (urlTree) {
       // 상태 2 또는 3: 트리 페이지 (오너 또는 게스트)
       // treeId가 변경되면 초기화 (새 트리 로드 시)
       if (treeId !== urlTree) {
         setTreeId(urlTree);
-        // 새 트리 로드 시 소유권 확인 필요 (단, pendingTreeData가 있으면 트리 저장 중이므로 제외)
-        if (!pendingTreeData) {
-          setIsOwner(false);
-        }
+        setIsOwner(false);
       }
 
-      // 트리 소유권 확인 (pendingTreeData가 없고, user와 treeId가 준비되었을 때만)
-      // pendingTreeData가 있으면 트리 저장 중이므로 소유권 확인 건너뛰기
-      if (!pendingTreeData && user && urlTree) {
+      // 트리 소유권 확인 (user와 treeId가 준비되었을 때만)
+      if (user && urlTree) {
         void checkTreeOwnership(urlTree);
       } else if (!user && urlTree) {
         // user가 없으면 게스트로 처리
@@ -495,27 +510,34 @@ export default function Home() {
     })();
   }, [treeId, isOwner, loadTreeInfo]);
 
-  // 온보딩 화면 표시: URL에 tree 파라미터가 없으면 온보딩
+  // 온보딩 화면 표시 로직 (단순화)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlTree = params.get("tree");
     const isManagePage = pathname === "/manage";
 
-    // /manage 경로는 비밀번호 모달이 처리하므로 온보딩 표시 안 함
+    // /manage 경로는 온보딩 표시 안 함
     if (isManagePage) {
       setIsOnboardingOpen(false);
       return;
     }
 
-    // URL에 tree 파라미터가 있으면 온보딩 표시 안 함 (게스트 또는 오너 화면)
+    // URL에 tree 파라미터가 있으면 온보딩 표시 안 함
     if (urlTree) {
       setIsOnboardingOpen(false);
       return;
     }
 
-    // URL에 tree 파라미터가 없으면 온보딩 표시
-    setIsOnboardingOpen(true);
-  }, [treeId, pathname]);
+    // pendingTreeData가 있으면 트리 저장 중이므로 온보딩 표시 안 함
+    if (pendingTreeData) {
+      setIsOnboardingOpen(false);
+      return;
+    }
+
+    // 그 외의 경우: localStorage에 hostProfile이 없으면 온보딩 표시
+    const savedHostProfile = window.localStorage.getItem("xmas.hostProfile");
+    setIsOnboardingOpen(!savedHostProfile);
+  }, [pathname, treeId, pendingTreeData]);
 
   useEffect(() => {
     void refetchMessages();
@@ -840,328 +862,355 @@ export default function Home() {
       <div className="pointer-events-none absolute -bottom-28 left-1/2 h-[560px] w-[560px] -translate-x-1/2 rounded-full bg-white/35 blur-3xl" />
 
       <div className="relative mx-auto flex min-h-dvh max-w-5xl flex-col px-5 pb-10 pt-6 sm:px-8 sm:pt-10">
-        <section className="mt-5 flex flex-1 flex-col items-center justify-center gap-6 sm:mt-6 sm:gap-8">
-          {/* Tree image */}
-          <div className="relative w-[min(82vw,420px)]">
-            {/* Title (merged closer to tree) */}
-            <div className="mb-4 flex w-full justify-center">
-              <div className="rounded-3xl border border-white/40 bg-white/30 px-5 py-3 text-center shadow-[0_20px_50px_rgba(25,50,80,0.12)] backdrop-blur-xl">
-                <p className="text-[15px] font-extrabold tracking-tight text-slate-700 sm:text-base">
-                  {host?.name ? (
-                    <>
-                      <span className="relative inline-block">
-                        <span className="absolute inset-0 bg-gradient-to-r from-christmas-red/20 via-christmas-green/20 to-christmas-red/20 blur-md rounded-lg" />
-                        <span className="relative inline-block text-lg font-black bg-gradient-to-r from-christmas-red via-[#D97706] to-christmas-green bg-clip-text text-transparent sm:text-xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]">
-                          {host.name}
-                        </span>
-                      </span>
-                      <span className="text-slate-600 ml-1">
-                        의 크리스마스 트리
-                      </span>
-                    </>
-                  ) : (
-                    "내 크리스마스 트리"
-                  )}
-                </p>
-                {host ? (
-                  <p className="mt-0.5 text-xs font-semibold text-slate-600">
-                    {host.gender === "female"
-                      ? "여성"
-                      : host.gender === "male"
-                      ? "남성"
-                      : host.gender === "nonbinary"
-                      ? "논바이너리"
-                      : "비공개"}{" "}
-                    · {host.age}살
-                  </p>
-                ) : null}
-              </div>
+        {/* 트리 저장 중 로딩 표시 */}
+        {pendingTreeData && user ? (
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-christmas-red border-t-transparent" />
+              <p className="text-lg font-bold text-slate-700">
+                트리를 저장하고 있어요...
+              </p>
             </div>
-
-            {/* Profile edit shortcut */}
-            {isOwner ? (
-              <div className="mb-3 flex w-full justify-center">
-                <motion.button
-                  type="button"
-                  onClick={() => setIsOnboardingOpen(true)}
-                  whileTap={{ scale: 0.98 }}
-                  className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
-                >
-                  내 트리 정보 수정
-                </motion.button>
+          </div>
+        ) : (
+          <section className="mt-5 flex flex-1 flex-col items-center justify-center gap-6 sm:mt-6 sm:gap-8">
+            {/* Tree image */}
+            <div className="relative w-[min(82vw,420px)]">
+              {/* Title (merged closer to tree) */}
+              <div className="mb-4 flex w-full justify-center">
+                <div className="rounded-3xl border border-white/40 bg-white/30 px-5 py-3 text-center shadow-[0_20px_50px_rgba(25,50,80,0.12)] backdrop-blur-xl">
+                  <p className="text-[15px] font-extrabold tracking-tight text-slate-700 sm:text-base">
+                    {host?.name ? (
+                      <>
+                        <span className="relative inline-block">
+                          <span className="absolute inset-0 bg-gradient-to-r from-christmas-red/20 via-christmas-green/20 to-christmas-red/20 blur-md rounded-lg" />
+                          <span className="relative inline-block text-lg font-black bg-gradient-to-r from-christmas-red via-[#D97706] to-christmas-green bg-clip-text text-transparent sm:text-xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.1)]">
+                            {host.name}
+                          </span>
+                        </span>
+                        <span className="text-slate-600 ml-1">
+                          의 크리스마스 트리
+                        </span>
+                      </>
+                    ) : (
+                      "내 크리스마스 트리"
+                    )}
+                  </p>
+                  {host ? (
+                    <p className="mt-0.5 text-xs font-semibold text-slate-600">
+                      {host.gender === "female"
+                        ? "여성"
+                        : host.gender === "male"
+                        ? "남성"
+                        : host.gender === "nonbinary"
+                        ? "논바이너리"
+                        : "비공개"}{" "}
+                      · {host.age}살
+                    </p>
+                  ) : null}
+                </div>
               </div>
-            ) : null}
 
-            {/* Main Container (relative): Tree + Gifts(absolute) + Santa(absolute) */}
-            <div
-              className="relative overflow-hidden rounded-[44px] border border-white/40 bg-white/30 p-4 shadow-[0_30px_70px_rgba(25,50,80,0.16)] backdrop-blur-lg sm:p-6"
-              ref={treeContainerRef}
-            >
-              {/* 새로고침 버튼 - 트리 카드 우측 상단 */}
-              <motion.button
-                type="button"
-                onClick={() => {
-                  void refetchMessages();
-                  showToast("트리를 새로고침했어요.");
-                }}
-                disabled={!treeId}
-                whileTap={{ scale: 0.98 }}
-                whileHover={{ scale: 1.05 }}
-                aria-label="트리 새로고침"
-                title="트리 새로고침"
-                className={[
-                  "absolute top-4 right-4 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/35 text-slate-700",
-                  "shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
-                  "transition-[transform,filter] duration-150 ease-out",
-                  treeId ? "opacity-100" : "opacity-60",
-                ].join(" ")}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="drop-shadow-[0_6px_10px_rgba(25,50,80,0.10)]"
-                >
-                  <path
-                    d="M21 12a9 9 0 1 1-2.64-6.36"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M21 3v6h-6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </motion.button>
-
-              {/* Host Mode 디버그 버튼들 */}
-              {isHostMode ? (
-                <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap gap-2 sm:left-auto sm:right-4 sm:w-auto">
+              {/* Profile edit shortcut */}
+              {isOwner ? (
+                <div className="mb-3 flex w-full justify-center">
                   <motion.button
                     type="button"
-                    onClick={() => setIsResetOpen(true)}
+                    onClick={() => setIsOnboardingOpen(true)}
                     whileTap={{ scale: 0.98 }}
                     className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
                   >
-                    테스트 데이터 초기화
-                  </motion.button>
-
-                  <motion.button
-                    type="button"
-                    onClick={() => {
-                      // ✅ 새 트리 만들기: tree_id와 owner_token 새로 발급 → localStorage/URL 반영 → 상태 초기화
-                      const params = new URLSearchParams(
-                        window.location.search
-                      );
-                      const nextTree =
-                        typeof crypto !== "undefined" && "randomUUID" in crypto
-                          ? crypto.randomUUID()
-                          : String(Date.now());
-                      const nextOwnerToken =
-                        typeof crypto !== "undefined" && "randomUUID" in crypto
-                          ? crypto.randomUUID()
-                          : String(Date.now() + Math.random());
-                      window.localStorage.setItem("my_tree_id", nextTree);
-                      window.localStorage.setItem(
-                        "owner_token",
-                        nextOwnerToken
-                      );
-                      params.set("tree", nextTree);
-                      params.set("owner", nextOwnerToken);
-                      const nextUrl = `${
-                        window.location.pathname
-                      }?${params.toString()}`;
-                      window.history.replaceState({}, "", nextUrl);
-
-                      setTreeId(nextTree);
-                      setIsOwner(true);
-                      setMessages([]);
-                      setSelectedMessage(null);
-                      setIsUnboxOpen(false);
-                      setLastGiftId(null);
-                      showToast("새 트리를 만들었어요! 링크를 공유해봐요.");
-                    }}
-                    whileTap={{ scale: 0.98 }}
-                    className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
-                  >
-                    새 트리 만들기
+                    내 트리 정보 수정
                   </motion.button>
                 </div>
               ) : null}
-              <div className="relative aspect-[1/1.05] w-full">
-                <Image
-                  src={treeImageSrc}
-                  alt="3D Christmas tree"
-                  fill
-                  priority
-                  sizes="(max-width: 640px) 82vw, 420px"
-                  className="object-contain"
-                />
-              </div>
 
-              {/* Items (inside tree container) */}
+              {/* Main Container (relative): Tree + Gifts(absolute) + Santa(absolute) */}
               <div
-                className="absolute inset-0"
-                id="tree-container"
-                ref={treeItemsContainerRef}
+                className="relative overflow-hidden rounded-[44px] border border-white/40 bg-white/30 p-4 shadow-[0_30px_70px_rgba(25,50,80,0.16)] backdrop-blur-lg sm:p-6"
+                ref={treeContainerRef}
               >
-                {messages.map((m) => {
-                  const id = String(m.id);
-                  const p = itemPlacements[id];
-                  const type = (m.item_type ?? "ornament") as ItemType;
-                  const fileBase = resolveItemFileBase({
-                    itemType: type,
-                    itemDesign: m.item_design,
-                    giftColor: m.gift_color,
-                  });
-                  const src = `/images/${fileBase}.png`;
-                  const isNew =
-                    lastGiftId && String(m.id) === String(lastGiftId);
-                  const baseRot = p?.rotate ?? 0;
-                  const isDragging = draggingItemId === id;
-
-                  // 위치 계산 (드래그 중에는 Framer Motion이 transform으로 처리)
-                  const leftPct = p?.leftPct ?? 50;
-                  const topPct = type === "ornament" ? p?.topPct : undefined;
-                  const bottomPct = type === "gift" ? p?.bottomPct : undefined;
-
-                  return (
-                    <motion.button
-                      key={String(m.id)}
-                      type="button"
-                      initial={{ opacity: 0, scale: 0.5, rotate: baseRot - 12 }}
-                      animate={{
-                        opacity: 1,
-                        scale: isDragging ? 1.1 : 1,
-                        rotate: isDragging
-                          ? baseRot
-                          : [
-                              baseRot - 12,
-                              baseRot + 12,
-                              baseRot - 7,
-                              baseRot + 7,
-                              baseRot,
-                            ],
-                      }}
-                      transition={{
-                        rotate: {
-                          duration: isDragging ? 0 : 0.9,
-                          ease: "easeOut",
-                          delay: isNew && !isDragging ? 0.15 : 0,
-                        },
-                        opacity: {
-                          duration: 0.25,
-                          ease: "easeOut",
-                          delay: isNew && !isDragging ? 0.15 : 0,
-                        },
-                        scale: { type: "spring", stiffness: 520, damping: 22 },
-                        filter: { duration: 0.12 },
-                      }}
-                      drag
-                      dragMomentum={false}
-                      dragConstraints={treeItemsContainerRef}
-                      dragElastic={0}
-                      onDragStart={() => handleDragStart(id)}
-                      onDragEnd={(event) => handleDragEnd(id, m, event)}
-                      className="absolute cursor-grab active:cursor-grabbing select-none"
-                      style={{
-                        left: `${leftPct}%`,
-                        top:
-                          type === "ornament" && topPct !== undefined
-                            ? `${topPct}%`
-                            : undefined,
-                        bottom:
-                          type === "gift" && bottomPct !== undefined
-                            ? `${bottomPct}%`
-                            : undefined,
-                        width: p?.size ?? (type === "gift" ? 34 : 24),
-                        height: p?.size ?? (type === "gift" ? 34 : 24),
-                        transform:
-                          type === "gift"
-                            ? "translate(-50%, 0)"
-                            : "translate(-50%, -50%)",
-                        zIndex: isDragging || hoveredItemId === id ? 999 : 20,
-                      }}
-                      title={`${m.sender_name}: ${m.content}`}
-                      onClick={(e) => {
-                        // 드래그 중이면 클릭 이벤트 무시
-                        if (isDragging) {
-                          e.stopPropagation();
-                          return;
-                        }
-                        // ✅ 오너먼트는 언제든 열람 가능, 선물만 타임락
-                        if (type === "gift" && !isGiftUnlocked) {
-                          showToast(
-                            "크리스마스 이브(12/24)부터 열어볼 수 있어요!"
-                          );
-                          return;
-                        }
-                        setSelectedMessage(m);
-                        setIsUnboxOpen(true);
-                      }}
-                      onHoverStart={() => {
-                        if (!isDragging) handleItemHoverStart(id);
-                      }}
-                      onHoverEnd={() => {
-                        if (!isDragging) handleItemHoverEnd();
-                      }}
-                      whileHover={
-                        !isDragging
-                          ? {
-                              scale: 1.2,
-                              filter: "brightness(1.1)",
-                            }
-                          : undefined
-                      }
-                      whileTap={!isDragging ? { scale: 0.98 } : undefined}
-                    >
-                      <Image
-                        src={src}
-                        alt={type === "gift" ? "gift" : "ornament"}
-                        fill
-                        sizes="32px"
-                        loading="lazy"
-                        className="object-contain drop-shadow-[2px_4px_6px_rgba(0,0,0,0.25)] pointer-events-none"
-                      />
-                    </motion.button>
-                  );
-                })}
-              </div>
-
-              {/* Santa Image (absolute): top -100px -> top 10%, left 50% */}
-              <AnimatePresence>
-                {isSantaVisible ? (
-                  <motion.div
-                    key={santaKey}
-                    className="pointer-events-none absolute z-[999]"
-                    style={{ left: "50%", transform: "translate(-50%, 0)" }}
-                    initial={{ top: -100, opacity: 0, rotate: -8, scale: 0.95 }}
-                    animate={{ top: "10%", opacity: 1, rotate: 6, scale: 1 }}
-                    exit={{ top: -120, opacity: 0, rotate: 10, scale: 0.98 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
+                {/* 새로고침 버튼 - 트리 카드 우측 상단 */}
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    void refetchMessages();
+                    showToast("트리를 새로고침했어요.");
+                  }}
+                  disabled={!treeId}
+                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.05 }}
+                  aria-label="트리 새로고침"
+                  title="트리 새로고침"
+                  className={[
+                    "absolute top-4 right-4 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/35 text-slate-700",
+                    "shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
+                    "transition-[transform,filter] duration-150 ease-out",
+                    treeId ? "opacity-100" : "opacity-60",
+                  ].join(" ")}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="drop-shadow-[0_6px_10px_rgba(25,50,80,0.10)]"
                   >
-                    <div className="relative h-40 w-40 sm:h-52 sm:w-52">
-                      <Image
-                        src="/images/santa.png"
-                        alt="Santa"
-                        fill
-                        sizes="208px"
-                        className="object-contain drop-shadow-[0_30px_30px_rgba(25,50,80,0.22)]"
-                      />
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
-          </div>
+                    <path
+                      d="M21 12a9 9 0 1 1-2.64-6.36"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M21 3v6h-6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </motion.button>
 
-          {/* ==========================================
+                {/* Host Mode 디버그 버튼들 */}
+                {isHostMode ? (
+                  <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap gap-2 sm:left-auto sm:right-4 sm:w-auto">
+                    <motion.button
+                      type="button"
+                      onClick={() => setIsResetOpen(true)}
+                      whileTap={{ scale: 0.98 }}
+                      className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
+                    >
+                      테스트 데이터 초기화
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      onClick={() => {
+                        // ✅ 새 트리 만들기: tree_id와 owner_token 새로 발급 → localStorage/URL 반영 → 상태 초기화
+                        const params = new URLSearchParams(
+                          window.location.search
+                        );
+                        const nextTree =
+                          typeof crypto !== "undefined" &&
+                          "randomUUID" in crypto
+                            ? crypto.randomUUID()
+                            : String(Date.now());
+                        const nextOwnerToken =
+                          typeof crypto !== "undefined" &&
+                          "randomUUID" in crypto
+                            ? crypto.randomUUID()
+                            : String(Date.now() + Math.random());
+                        window.localStorage.setItem("my_tree_id", nextTree);
+                        window.localStorage.setItem(
+                          "owner_token",
+                          nextOwnerToken
+                        );
+                        params.set("tree", nextTree);
+                        params.set("owner", nextOwnerToken);
+                        const nextUrl = `${
+                          window.location.pathname
+                        }?${params.toString()}`;
+                        window.history.replaceState({}, "", nextUrl);
+
+                        setTreeId(nextTree);
+                        setIsOwner(true);
+                        setMessages([]);
+                        setSelectedMessage(null);
+                        setIsUnboxOpen(false);
+                        setLastGiftId(null);
+                        showToast("새 트리를 만들었어요! 링크를 공유해봐요.");
+                      }}
+                      whileTap={{ scale: 0.98 }}
+                      className="rounded-2xl bg-white/35 px-4 py-2 text-xs font-extrabold text-slate-700 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md"
+                    >
+                      새 트리 만들기
+                    </motion.button>
+                  </div>
+                ) : null}
+                <div className="relative aspect-[1/1.05] w-full">
+                  <Image
+                    src={treeImageSrc}
+                    alt="3D Christmas tree"
+                    fill
+                    priority
+                    sizes="(max-width: 640px) 82vw, 420px"
+                    className="object-contain"
+                  />
+                </div>
+
+                {/* Items (inside tree container) */}
+                <div
+                  className="absolute inset-0"
+                  id="tree-container"
+                  ref={treeItemsContainerRef}
+                >
+                  {messages.map((m) => {
+                    const id = String(m.id);
+                    const p = itemPlacements[id];
+                    const type = (m.item_type ?? "ornament") as ItemType;
+                    const fileBase = resolveItemFileBase({
+                      itemType: type,
+                      itemDesign: m.item_design,
+                      giftColor: m.gift_color,
+                    });
+                    const src = `/images/${fileBase}.png`;
+                    const isNew =
+                      lastGiftId && String(m.id) === String(lastGiftId);
+                    const baseRot = p?.rotate ?? 0;
+                    const isDragging = draggingItemId === id;
+
+                    // 위치 계산 (드래그 중에는 Framer Motion이 transform으로 처리)
+                    const leftPct = p?.leftPct ?? 50;
+                    const topPct = type === "ornament" ? p?.topPct : undefined;
+                    const bottomPct =
+                      type === "gift" ? p?.bottomPct : undefined;
+
+                    return (
+                      <motion.button
+                        key={String(m.id)}
+                        type="button"
+                        initial={{
+                          opacity: 0,
+                          scale: 0.5,
+                          rotate: baseRot - 12,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          scale: isDragging ? 1.1 : 1,
+                          rotate: isDragging
+                            ? baseRot
+                            : [
+                                baseRot - 12,
+                                baseRot + 12,
+                                baseRot - 7,
+                                baseRot + 7,
+                                baseRot,
+                              ],
+                        }}
+                        transition={{
+                          rotate: {
+                            duration: isDragging ? 0 : 0.9,
+                            ease: "easeOut",
+                            delay: isNew && !isDragging ? 0.15 : 0,
+                          },
+                          opacity: {
+                            duration: 0.25,
+                            ease: "easeOut",
+                            delay: isNew && !isDragging ? 0.15 : 0,
+                          },
+                          scale: {
+                            type: "spring",
+                            stiffness: 520,
+                            damping: 22,
+                          },
+                          filter: { duration: 0.12 },
+                        }}
+                        drag
+                        dragMomentum={false}
+                        dragConstraints={treeItemsContainerRef}
+                        dragElastic={0}
+                        onDragStart={() => handleDragStart(id)}
+                        onDragEnd={(event) => handleDragEnd(id, m, event)}
+                        className="absolute cursor-grab active:cursor-grabbing select-none"
+                        style={{
+                          left: `${leftPct}%`,
+                          top:
+                            type === "ornament" && topPct !== undefined
+                              ? `${topPct}%`
+                              : undefined,
+                          bottom:
+                            type === "gift" && bottomPct !== undefined
+                              ? `${bottomPct}%`
+                              : undefined,
+                          width: p?.size ?? (type === "gift" ? 34 : 24),
+                          height: p?.size ?? (type === "gift" ? 34 : 24),
+                          transform:
+                            type === "gift"
+                              ? "translate(-50%, 0)"
+                              : "translate(-50%, -50%)",
+                          zIndex: isDragging || hoveredItemId === id ? 999 : 20,
+                        }}
+                        title={`${m.sender_name}: ${m.content}`}
+                        onClick={(e) => {
+                          // 드래그 중이면 클릭 이벤트 무시
+                          if (isDragging) {
+                            e.stopPropagation();
+                            return;
+                          }
+                          // ✅ 오너먼트는 언제든 열람 가능, 선물만 타임락
+                          if (type === "gift" && !isGiftUnlocked) {
+                            showToast(
+                              "크리스마스 이브(12/24)부터 열어볼 수 있어요!"
+                            );
+                            return;
+                          }
+                          setSelectedMessage(m);
+                          setIsUnboxOpen(true);
+                        }}
+                        onHoverStart={() => {
+                          if (!isDragging) handleItemHoverStart(id);
+                        }}
+                        onHoverEnd={() => {
+                          if (!isDragging) handleItemHoverEnd();
+                        }}
+                        whileHover={
+                          !isDragging
+                            ? {
+                                scale: 1.2,
+                                filter: "brightness(1.1)",
+                              }
+                            : undefined
+                        }
+                        whileTap={!isDragging ? { scale: 0.98 } : undefined}
+                      >
+                        <Image
+                          src={src}
+                          alt={type === "gift" ? "gift" : "ornament"}
+                          fill
+                          sizes="32px"
+                          loading="lazy"
+                          className="object-contain drop-shadow-[2px_4px_6px_rgba(0,0,0,0.25)] pointer-events-none"
+                        />
+                      </motion.button>
+                    );
+                  })}
+                </div>
+
+                {/* Santa Image (absolute): top -100px -> top 10%, left 50% */}
+                <AnimatePresence>
+                  {isSantaVisible ? (
+                    <motion.div
+                      key={santaKey}
+                      className="pointer-events-none absolute z-[999]"
+                      style={{ left: "50%", transform: "translate(-50%, 0)" }}
+                      initial={{
+                        top: -100,
+                        opacity: 0,
+                        rotate: -8,
+                        scale: 0.95,
+                      }}
+                      animate={{ top: "10%", opacity: 1, rotate: 6, scale: 1 }}
+                      exit={{ top: -120, opacity: 0, rotate: 10, scale: 0.98 }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                    >
+                      <div className="relative h-40 w-40 sm:h-52 sm:w-52">
+                        <Image
+                          src="/images/santa.png"
+                          alt="Santa"
+                          fill
+                          sizes="208px"
+                          className="object-contain drop-shadow-[0_30px_30px_rgba(25,50,80,0.22)]"
+                        />
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* ==========================================
               상태 분기: 오너 화면 (State 2)
               조건: isOwner === true && treeId !== null && !isAuthChecking
               필수 요소:
@@ -1169,79 +1218,123 @@ export default function Home() {
               - 산타 편지 기능 (선물 받기 / 다시 보기 / 업데이트)
               - 내 트리 정보 수정 버튼 (위에 있음)
               ========================================== */}
-          {/* 소유권 확인 중에는 버튼을 숨김 (깜빡임 방지) */}
-          {isAuthChecking && treeId ? (
-            <div className="flex w-full max-w-md flex-col gap-3 items-center justify-center py-8">
-              <div className="text-sm text-slate-600">확인 중...</div>
-            </div>
-          ) : isOwner && treeId ? (
-            <div className="flex w-full max-w-md flex-col gap-3">
-              {/* 링크 복사하기 버튼 */}
-              <motion.button
-                type="button"
-                onClick={async () => {
-                  try {
-                    // 게스트용 링크 복사: /?tree=xxx 형식
-                    if (!treeId) {
-                      showToast("트리 ID가 없어요.");
-                      return;
+            {/* 소유권 확인 중에는 버튼을 숨김 (깜빡임 방지) */}
+            {isAuthChecking && treeId ? (
+              <div className="flex w-full max-w-md flex-col gap-3 items-center justify-center py-8">
+                <div className="text-sm text-slate-600">확인 중...</div>
+              </div>
+            ) : isOwner && treeId ? (
+              <div className="flex w-full max-w-md flex-col gap-3">
+                {/* 링크 복사하기 버튼 */}
+                <motion.button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      // 게스트용 링크 복사: /?tree=xxx 형식
+                      if (!treeId) {
+                        showToast("트리 ID가 없어요.");
+                        return;
+                      }
+
+                      // 프로덕션 도메인 사용 (프리뷰 URL이 아닌 실제 프로덕션 URL)
+                      // Vercel 프리뷰 URL은 인증이 필요하므로 항상 프로덕션 도메인을 사용
+                      // 프로덕션 도메인: Vercel Settings > Domains에서 확인 가능
+                      const PRODUCTION_URL =
+                        process.env.NEXT_PUBLIC_PRODUCTION_URL ||
+                        "https://x-mas-ashy.vercel.app";
+
+                      // 현재 URL이 프리뷰 URL인지 확인 (프리뷰 URL은 긴 해시가 포함됨)
+                      // 또는 항상 프로덕션 URL을 사용하려면 아래 주석을 해제하세요
+                      const isPreviewUrl =
+                        window.location.hostname.includes(".vercel.app") &&
+                        (window.location.hostname.split(".")[0].length > 20 ||
+                          window.location.hostname.includes("-git-"));
+
+                      // 프리뷰 URL이면 프로덕션 URL 사용, 아니면 현재 origin 사용
+                      // 항상 프로덕션 URL을 사용하려면: const baseUrl = PRODUCTION_URL;
+                      const baseUrl = isPreviewUrl
+                        ? PRODUCTION_URL
+                        : window.location.origin;
+
+                      const guestUrl = `${baseUrl}/?tree=${treeId}`;
+                      await navigator.clipboard.writeText(guestUrl);
+                      showToast(
+                        "링크가 복사되었어요! 카카오톡 등으로 링크 공유해보세요."
+                      );
+                    } catch {
+                      showToast(
+                        "링크 복사에 실패했어요. 주소를 직접 복사해줘."
+                      );
                     }
+                  }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ y: 1, scale: 0.99 }}
+                  className={[
+                    "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
+                    "bg-gradient-to-b from-christmas-red to-[#D73C3C]",
+                    "shadow-clay shadow-clayInset ring-1 ring-white/35",
+                    "transition-[transform,box-shadow] duration-150 ease-out",
+                    "active:shadow-clayPressed active:translate-y-[1px]",
+                  ].join(" ")}
+                >
+                  <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                  <span className="relative">친구들에게 트리 꾸며달라하기</span>
+                  <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
+                </motion.button>
 
-                    // 프로덕션 도메인 사용 (프리뷰 URL이 아닌 실제 프로덕션 URL)
-                    // Vercel 프리뷰 URL은 인증이 필요하므로 항상 프로덕션 도메인을 사용
-                    // 프로덕션 도메인: Vercel Settings > Domains에서 확인 가능
-                    const PRODUCTION_URL =
-                      process.env.NEXT_PUBLIC_PRODUCTION_URL ||
-                      "https://x-mas-ashy.vercel.app";
-
-                    // 현재 URL이 프리뷰 URL인지 확인 (프리뷰 URL은 긴 해시가 포함됨)
-                    // 또는 항상 프로덕션 URL을 사용하려면 아래 주석을 해제하세요
-                    const isPreviewUrl =
-                      window.location.hostname.includes(".vercel.app") &&
-                      (window.location.hostname.split(".")[0].length > 20 ||
-                        window.location.hostname.includes("-git-"));
-
-                    // 프리뷰 URL이면 프로덕션 URL 사용, 아니면 현재 origin 사용
-                    // 항상 프로덕션 URL을 사용하려면: const baseUrl = PRODUCTION_URL;
-                    const baseUrl = isPreviewUrl
-                      ? PRODUCTION_URL
-                      : window.location.origin;
-
-                    const guestUrl = `${baseUrl}/?tree=${treeId}`;
-                    await navigator.clipboard.writeText(guestUrl);
-                    showToast(
-                      "링크가 복사되었어요! 카카오톡 등으로 링크 공유해보세요."
-                    );
-                  } catch {
-                    showToast("링크 복사에 실패했어요. 주소를 직접 복사해줘.");
-                  }
-                }}
-                whileHover={{ y: -2 }}
-                whileTap={{ y: 1, scale: 0.99 }}
-                className={[
-                  "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
-                  "bg-gradient-to-b from-christmas-red to-[#D73C3C]",
-                  "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                  "transition-[transform,box-shadow] duration-150 ease-out",
-                  "active:shadow-clayPressed active:translate-y-[1px]",
-                ].join(" ")}
-              >
-                <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                <span className="relative">친구들에게 트리 꾸며달라하기</span>
-                <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
-              </motion.button>
-
-              {/* 3단계 버튼 상태: 초기 / 완료 / 업데이트 */}
-              {savedSanta ? (
-                // 완료 상태 또는 업데이트 상태
-                messages.length !== savedSanta.itemCount ? (
-                  // 업데이트 상태: 새 메시지 있음
+                {/* 3단계 버튼 상태: 초기 / 완료 / 업데이트 */}
+                {savedSanta ? (
+                  // 완료 상태 또는 업데이트 상태
+                  messages.length !== savedSanta.itemCount ? (
+                    // 업데이트 상태: 새 메시지 있음
+                    <motion.button
+                      type="button"
+                      onClick={() => {
+                        if (messages.length >= 5) void runSantaAnalysis();
+                      }}
+                      disabled={messages.length < 5}
+                      whileHover={messages.length >= 5 ? { y: -1 } : undefined}
+                      whileTap={
+                        messages.length >= 5 ? { y: 1, scale: 0.99 } : undefined
+                      }
+                      className={[
+                        "relative w-full max-w-md select-none rounded-3xl px-6 py-3 text-base font-extrabold tracking-tight text-slate-800",
+                        "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_18px_30px_rgba(25,50,80,0.14)] backdrop-blur-xl ring-1 ring-white/35",
+                        messages.length >= 5 ? "opacity-100" : "opacity-60",
+                      ].join(" ")}
+                    >
+                      산타 편지 업데이트{" "}
+                      <span className="ml-1 inline-block rounded-full bg-christmas-red px-2 py-0.5 text-xs font-bold text-white">
+                        New!
+                      </span>
+                    </motion.button>
+                  ) : (
+                    // 완료 상태: 새 메시지 없음
+                    <motion.button
+                      type="button"
+                      onClick={() => {
+                        setIsSantaOpen(true);
+                        setIsSantaLoading(false);
+                        setSantaSummary(savedSanta.summary);
+                        setSantaGift(savedSanta.gift);
+                        setSantaRaw(savedSanta.raw);
+                      }}
+                      whileHover={{ y: -1 }}
+                      whileTap={{ y: 1, scale: 0.99 }}
+                      className={[
+                        "relative w-full max-w-md select-none rounded-3xl px-6 py-3 text-base font-extrabold tracking-tight text-slate-800",
+                        "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_18px_30px_rgba(25,50,80,0.14)] backdrop-blur-xl ring-1 ring-white/35",
+                      ].join(" ")}
+                    >
+                      산타 편지 다시 보기
+                    </motion.button>
+                  )
+                ) : (
+                  // 초기 상태: 분석 안 함
                   <motion.button
                     type="button"
-                    onClick={() => {
-                      if (messages.length >= 5) void runSantaAnalysis();
-                    }}
                     disabled={messages.length < 5}
+                    onClick={() => void runSantaAnalysis()}
                     whileHover={messages.length >= 5 ? { y: -1 } : undefined}
                     whileTap={
                       messages.length >= 5 ? { y: 1, scale: 0.99 } : undefined
@@ -1252,320 +1345,279 @@ export default function Home() {
                       messages.length >= 5 ? "opacity-100" : "opacity-60",
                     ].join(" ")}
                   >
-                    산타 편지 업데이트{" "}
-                    <span className="ml-1 inline-block rounded-full bg-christmas-red px-2 py-0.5 text-xs font-bold text-white">
-                      New!
+                    산타에게 선물 받기
+                    <span className="ml-2 text-xs font-bold text-slate-600">
+                      ({messages.length}/5)
                     </span>
                   </motion.button>
-                ) : (
-                  // 완료 상태: 새 메시지 없음
-                  <motion.button
-                    type="button"
-                    onClick={() => {
-                      setIsSantaOpen(true);
-                      setIsSantaLoading(false);
-                      setSantaSummary(savedSanta.summary);
-                      setSantaGift(savedSanta.gift);
-                      setSantaRaw(savedSanta.raw);
-                    }}
-                    whileHover={{ y: -1 }}
-                    whileTap={{ y: 1, scale: 0.99 }}
-                    className={[
-                      "relative w-full max-w-md select-none rounded-3xl px-6 py-3 text-base font-extrabold tracking-tight text-slate-800",
-                      "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_18px_30px_rgba(25,50,80,0.14)] backdrop-blur-xl ring-1 ring-white/35",
-                    ].join(" ")}
-                  >
-                    산타 편지 다시 보기
-                  </motion.button>
-                )
-              ) : (
-                // 초기 상태: 분석 안 함
+                )}
+              </div>
+            ) : treeId && !isAuthChecking ? (
+              // ==========================================
+              // 상태 분기: 게스트 화면 (State 3)
+              // 조건: isOwner === false && treeId !== null && !isAuthChecking
+              // 필수 요소:
+              // - "OOO님의 트리입니다" (이미 위에 표시됨)
+              // - 오너먼트 달기 / 선물 주기 버튼 (메시지 남기기)
+              // - 나도 트리 만들기 버튼 (아래에 있음)
+              // - 주의: 오너 전용 기능(링크 복사, 트리 수정)은 절대 표시하지 않음
+              // ==========================================
+              <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:gap-4">
                 <motion.button
                   type="button"
-                  disabled={messages.length < 5}
-                  onClick={() => void runSantaAnalysis()}
-                  whileHover={messages.length >= 5 ? { y: -1 } : undefined}
-                  whileTap={
-                    messages.length >= 5 ? { y: 1, scale: 0.99 } : undefined
-                  }
+                  onClick={() => {
+                    setComposeDefaults({ itemType: "ornament" });
+                    setOpen(true);
+                  }}
+                  disabled={!host || isOnboardingOpen}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ y: 1, scale: 0.99 }}
                   className={[
-                    "relative w-full max-w-md select-none rounded-3xl px-6 py-3 text-base font-extrabold tracking-tight text-slate-800",
-                    "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_18px_30px_rgba(25,50,80,0.14)] backdrop-blur-xl ring-1 ring-white/35",
-                    messages.length >= 5 ? "opacity-100" : "opacity-60",
+                    "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
+                    "bg-gradient-to-b from-christmas-green to-[#239B62]",
+                    "shadow-clay shadow-clayInset ring-1 ring-white/35",
+                    "transition-[transform,box-shadow] duration-150 ease-out",
+                    "active:shadow-clayPressed active:translate-y-[1px]",
+                    !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
                   ].join(" ")}
                 >
-                  산타에게 선물 받기
-                  <span className="ml-2 text-xs font-bold text-slate-600">
-                    ({messages.length}/5)
-                  </span>
+                  <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                  <span className="relative">오너먼트 달기</span>
                 </motion.button>
-              )}
-            </div>
-          ) : treeId && !isAuthChecking ? (
-            // ==========================================
-            // 상태 분기: 게스트 화면 (State 3)
-            // 조건: isOwner === false && treeId !== null && !isAuthChecking
+
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    setComposeDefaults({ itemType: "gift", giftColor: "red" });
+                    setOpen(true);
+                  }}
+                  disabled={!host || isOnboardingOpen}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ y: 1, scale: 0.99 }}
+                  className={[
+                    "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
+                    "bg-gradient-to-b from-christmas-red to-[#D73C3C]",
+                    "shadow-clay shadow-clayInset ring-1 ring-white/35",
+                    "transition-[transform,box-shadow] duration-150 ease-out",
+                    "active:shadow-clayPressed active:translate-y-[1px]",
+                    !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
+                  ].join(" ")}
+                >
+                  <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                  <span className="relative">선물 주기</span>
+                  <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
+                </motion.button>
+              </div>
+            ) : // ==========================================
+            // 상태 분기: 온보딩 화면 (State 1)
+            // 조건: treeId === null
             // 필수 요소:
-            // - "OOO님의 트리입니다" (이미 위에 표시됨)
-            // - 오너먼트 달기 / 선물 주기 버튼 (메시지 남기기)
-            // - 나도 트리 만들기 버튼 (아래에 있음)
-            // - 주의: 오너 전용 기능(링크 복사, 트리 수정)은 절대 표시하지 않음
+            // - 트리 꾸미기 도구 (아이템 선택, 색상 변경 등) - 온보딩 모달에서 제공
+            // - 온보딩 모달이 열려있음 (트리 정보 입력)
+            // - 온보딩 완료 후 "카카오로 1초 만에 저장하고 링크 만들기" 버튼 (로그인 유도)
             // ==========================================
-            <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:gap-4">
-              <motion.button
-                type="button"
-                onClick={() => {
-                  setComposeDefaults({ itemType: "ornament" });
-                  setOpen(true);
-                }}
-                disabled={!host || isOnboardingOpen}
-                whileHover={{ y: -2 }}
-                whileTap={{ y: 1, scale: 0.99 }}
-                className={[
-                  "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
-                  "bg-gradient-to-b from-christmas-green to-[#239B62]",
-                  "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                  "transition-[transform,box-shadow] duration-150 ease-out",
-                  "active:shadow-clayPressed active:translate-y-[1px]",
-                  !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
-                ].join(" ")}
-              >
-                <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                <span className="relative">오너먼트 달기</span>
-              </motion.button>
+            // 온보딩 화면에서는 게스트/오너 버튼들을 숨김
+            // 온보딩 모달에서 트리 정보 입력 완료 후 로그인 유도
+            null}
 
-              <motion.button
-                type="button"
-                onClick={() => {
-                  setComposeDefaults({ itemType: "gift", giftColor: "red" });
-                  setOpen(true);
-                }}
-                disabled={!host || isOnboardingOpen}
-                whileHover={{ y: -2 }}
-                whileTap={{ y: 1, scale: 0.99 }}
-                className={[
-                  "group relative w-full select-none rounded-clay px-6 py-4 text-lg font-extrabold tracking-tight text-white",
-                  "bg-gradient-to-b from-christmas-red to-[#D73C3C]",
-                  "shadow-clay shadow-clayInset ring-1 ring-white/35",
-                  "transition-[transform,box-shadow] duration-150 ease-out",
-                  "active:shadow-clayPressed active:translate-y-[1px]",
-                  !host || isOnboardingOpen ? "opacity-60" : "opacity-100",
-                ].join(" ")}
-              >
-                <span className="pointer-events-none absolute inset-0 rounded-clay bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                <span className="relative">선물 주기</span>
-                <span className="pointer-events-none absolute -right-2 -top-2 h-10 w-10 rounded-full bg-white/25 blur-xl" />
-              </motion.button>
-            </div>
-          ) : // ==========================================
-          // 상태 분기: 온보딩 화면 (State 1)
-          // 조건: treeId === null
-          // 필수 요소:
-          // - 트리 꾸미기 도구 (아이템 선택, 색상 변경 등) - 온보딩 모달에서 제공
-          // - 온보딩 모달이 열려있음 (트리 정보 입력)
-          // - 온보딩 완료 후 "카카오로 1초 만에 저장하고 링크 만들기" 버튼 (로그인 유도)
-          // ==========================================
-          // 온보딩 화면에서는 게스트/오너 버튼들을 숨김
-          // 온보딩 모달에서 트리 정보 입력 완료 후 로그인 유도
-          null}
+            {/* 게스트 화면 전용: 나도 트리 만들기 버튼 */}
+            {!isOwner && treeId ? (
+              <div className="mt-4 flex w-full max-w-md justify-center">
+                <motion.button
+                  type="button"
+                  onClick={() => {
+                    // 루트 URL로 이동하여 온보딩 시작
+                    window.location.href = window.location.origin;
+                  }}
+                  whileHover={{ y: -1 }}
+                  whileTap={{ y: 1, scale: 0.98 }}
+                  className={[
+                    "group relative select-none rounded-2xl px-6 py-3 text-sm font-extrabold tracking-tight text-slate-700",
+                    "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
+                    "transition-[transform,box-shadow] duration-150 ease-out",
+                  ].join(" ")}
+                >
+                  <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-white/25 to-transparent opacity-70" />
+                  <span className="relative">나도 트리 만들기</span>
+                </motion.button>
+              </div>
+            ) : null}
 
-          {/* 게스트 화면 전용: 나도 트리 만들기 버튼 */}
-          {!isOwner && treeId ? (
-            <div className="mt-4 flex w-full max-w-md justify-center">
-              <motion.button
-                type="button"
-                onClick={() => {
-                  // 루트 URL로 이동하여 온보딩 시작
-                  window.location.href = window.location.origin;
-                }}
-                whileHover={{ y: -1 }}
-                whileTap={{ y: 1, scale: 0.98 }}
-                className={[
-                  "group relative select-none rounded-2xl px-6 py-3 text-sm font-extrabold tracking-tight text-slate-700",
-                  "border border-white/45 bg-white/35 shadow-[inset_0_2px_0_rgba(255,255,255,0.55),_0_10px_18px_rgba(25,50,80,0.10)] ring-1 ring-white/45 backdrop-blur-md",
-                  "transition-[transform,box-shadow] duration-150 ease-out",
-                ].join(" ")}
-              >
-                <span className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-b from-white/25 to-transparent opacity-70" />
-                <span className="relative">나도 트리 만들기</span>
-              </motion.button>
-            </div>
-          ) : null}
-
-          <p className="max-w-md text-center text-sm text-slate-600 sm:text-base">
-            {isOwner ? (
-              messages.length === 0 ? (
+            <p className="max-w-md text-center text-sm text-slate-600 sm:text-base">
+              {isOwner ? (
+                messages.length === 0 ? (
+                  <>
+                    아직 아무도 꾸미지 않았어요.
+                    <br />
+                    <span className="font-semibold">링크를 복사해서</span>{" "}
+                    친구들에게 공유해봐요!
+                  </>
+                ) : (
+                  <>아이템을 눌러 메시지를 확인해보세요.</>
+                )
+              ) : messages.length === 0 ? (
                 <>
-                  아직 아무도 꾸미지 않았어요.
-                  <br />
-                  <span className="font-semibold">링크를 복사해서</span>{" "}
-                  친구들에게 공유해봐요!
+                  첫 번째로 <span className="font-semibold">오너먼트</span>나{" "}
+                  <span className="font-semibold">선물</span>을 남겨서 트리를
+                  꾸며줘요!
                 </>
               ) : (
-                <>아이템을 눌러 메시지를 확인해보세요.</>
-              )
-            ) : messages.length === 0 ? (
-              <>
-                첫 번째로 <span className="font-semibold">오너먼트</span>나{" "}
-                <span className="font-semibold">선물</span>을 남겨서 트리를
-                꾸며줘요!
-              </>
-            ) : (
-              <>아이템을 눌러 메시지를 확인하거나, 새 아이템을 남겨줘요.</>
-            )}
-          </p>
-
-          {loadError ? (
-            <p className="max-w-md text-center text-sm font-bold text-christmas-red">
-              메시지를 불러오지 못했어요: {loadError}
+                <>아이템을 눌러 메시지를 확인하거나, 새 아이템을 남겨줘요.</>
+              )}
             </p>
-          ) : null}
 
-          {/* Owner일 때는 위에 버튼 영역에서만 AI/Share 노출 */}
-        </section>
-      </div>
+            {loadError ? (
+              <p className="max-w-md text-center text-sm font-bold text-christmas-red">
+                메시지를 불러오지 못했어요: {loadError}
+              </p>
+            ) : null}
 
-      <MessageModal
-        open={open}
-        onClose={() => setOpen(false)}
-        onSubmit={handleSubmitMessage}
-        isSubmitting={isSubmitting}
-        defaultItemType={composeDefaults?.itemType}
-        defaultGiftColor={composeDefaults?.giftColor}
-        hostName={host?.name}
-      />
+            {/* Owner일 때는 위에 버튼 영역에서만 AI/Share 노출 */}
+          </section>
+        )}
 
-      <UnboxModal
-        open={isUnboxOpen}
-        locked={
-          (selectedMessage?.item_type ?? "ornament") === "gift" &&
-          !isGiftUnlocked
-        }
-        message={selectedMessage}
-        hostName={host?.name}
-        onClose={() => setIsUnboxOpen(false)}
-      />
+        <MessageModal
+          open={open}
+          onClose={() => setOpen(false)}
+          onSubmit={handleSubmitMessage}
+          isSubmitting={isSubmitting}
+          defaultItemType={composeDefaults?.itemType}
+          defaultGiftColor={composeDefaults?.giftColor}
+          hostName={host?.name}
+        />
 
-      <OnboardingModal
-        open={isOnboardingOpen}
-        initial={host ?? undefined}
-        availableTreeStyles={availableTreeStyles}
-        onComplete={async (profile) => {
-          setHost(profile);
-          window.localStorage.setItem(
-            "xmas.hostProfile",
-            JSON.stringify(profile)
-          );
-
-          // ✅ 트리 ID 생성 (임시로 localStorage에 저장)
-          let myTree = window.localStorage.getItem("my_tree_id");
-          if (!myTree) {
-            myTree =
-              typeof crypto !== "undefined" && "randomUUID" in crypto
-                ? crypto.randomUUID()
-                : String(Date.now());
-            window.localStorage.setItem("my_tree_id", myTree);
+        <UnboxModal
+          open={isUnboxOpen}
+          locked={
+            (selectedMessage?.item_type ?? "ornament") === "gift" &&
+            !isGiftUnlocked
           }
+          message={selectedMessage}
+          hostName={host?.name}
+          onClose={() => setIsUnboxOpen(false)}
+        />
 
-          // 트리 ID 설정하여 화면에 표시
-          setTreeId(myTree);
-          setIsOnboardingOpen(false);
+        <OnboardingModal
+          open={isOnboardingOpen}
+          initial={host ?? undefined}
+          availableTreeStyles={availableTreeStyles}
+          onComplete={async (profile) => {
+            setHost(profile);
+            window.localStorage.setItem(
+              "xmas.hostProfile",
+              JSON.stringify(profile)
+            );
 
-          // 로그인 상태 확인
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          if (session?.user) {
-            // 이미 로그인되어 있으면 바로 저장
-            await saveTreeAfterLogin(profile, myTree, session.user.id);
-          } else {
-            // 로그인 필요: pendingTreeData를 state와 localStorage에 모두 저장
-            // (OAuth 콜백 후 페이지 새로고침 시 복원을 위해)
-            const pendingData = { profile, treeId: myTree };
-            setPendingTreeData(pendingData);
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(
-                "xmas.pendingTreeData",
-                JSON.stringify(pendingData)
-              );
+            // ✅ 트리 ID 생성 (임시로 localStorage에 저장)
+            let myTree = window.localStorage.getItem("my_tree_id");
+            if (!myTree) {
+              myTree =
+                typeof crypto !== "undefined" && "randomUUID" in crypto
+                  ? crypto.randomUUID()
+                  : String(Date.now());
+              window.localStorage.setItem("my_tree_id", myTree);
             }
-            setIsLoginModalOpen(true);
-          }
-        }}
-        onClose={
-          host
-            ? async () => {
-                setIsOnboardingOpen(false);
-                // 트리 정보 수정 후 Supabase에 업데이트
-                if (treeId && host) {
-                  try {
-                    const { error } = await supabase.from("trees").upsert(
-                      {
-                        id: treeId,
-                        host_name: host.name,
-                        host_gender: host.gender,
-                        host_age: host.age,
-                        tree_style: host.treeStyle,
-                      },
-                      { onConflict: "id" }
-                    );
-                    if (error) {
-                      console.error("트리 정보 업데이트 실패:", error);
+
+            // 트리 ID 설정하여 화면에 표시
+            setTreeId(myTree);
+            setIsOnboardingOpen(false);
+
+            // 로그인 상태 확인
+            const {
+              data: { session },
+            } = await supabase.auth.getSession();
+
+            if (session?.user) {
+              // 이미 로그인되어 있으면 바로 저장
+              await saveTreeAfterLogin(profile, myTree, session.user.id);
+            } else {
+              // 로그인 필요: pendingTreeData를 state와 localStorage에 모두 저장
+              // (OAuth 콜백 후 페이지 새로고침 시 복원을 위해)
+              const pendingData = { profile, treeId: myTree };
+              setPendingTreeData(pendingData);
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(
+                  "xmas.pendingTreeData",
+                  JSON.stringify(pendingData)
+                );
+              }
+              setIsLoginModalOpen(true);
+            }
+          }}
+          onClose={
+            host
+              ? async () => {
+                  setIsOnboardingOpen(false);
+                  // 트리 정보 수정 후 Supabase에 업데이트
+                  if (treeId && host) {
+                    try {
+                      const { error } = await supabase.from("trees").upsert(
+                        {
+                          id: treeId,
+                          host_name: host.name,
+                          host_gender: host.gender,
+                          host_age: host.age,
+                          tree_style: host.treeStyle,
+                        },
+                        { onConflict: "id" }
+                      );
+                      if (error) {
+                        console.error("트리 정보 업데이트 실패:", error);
+                      }
+                    } catch (e) {
+                      console.error("트리 정보 업데이트 중 오류:", e);
                     }
-                  } catch (e) {
-                    console.error("트리 정보 업데이트 중 오류:", e);
                   }
                 }
-              }
-            : undefined
-        }
-      />
+              : undefined
+          }
+        />
 
-      <ConfirmModal
-        open={isResetOpen}
-        title="테스트 데이터를 초기화할까요?"
-        description={`현재 메시지/아이템 ${messages.length}개가 전부 삭제돼요. (되돌릴 수 없음)`}
-        confirmText={isResetting ? "삭제 중..." : "전부 삭제"}
-        cancelText="취소"
-        danger
-        onCancel={() => (isResetting ? null : setIsResetOpen(false))}
-        onConfirm={() => {
-          if (isResetting) return;
-          void resetAllMessages();
-        }}
-      />
+        <ConfirmModal
+          open={isResetOpen}
+          title="테스트 데이터를 초기화할까요?"
+          description={`현재 메시지/아이템 ${messages.length}개가 전부 삭제돼요. (되돌릴 수 없음)`}
+          confirmText={isResetting ? "삭제 중..." : "전부 삭제"}
+          cancelText="취소"
+          danger
+          onCancel={() => (isResetting ? null : setIsResetOpen(false))}
+          onConfirm={() => {
+            if (isResetting) return;
+            void resetAllMessages();
+          }}
+        />
 
-      <Toast open={toast.open} message={toast.message} />
+        <Toast open={toast.open} message={toast.message} />
 
-      <SantaAnalysisModal
-        open={isSantaOpen}
-        onClose={() => setIsSantaOpen(false)}
-        loading={isSantaLoading}
-        summary={santaSummary}
-        gift={santaGift}
-        raw={santaRaw}
-        hostName={host?.name}
-        treeContainerRef={treeContainerRef}
-        onToast={showToast}
-      />
+        <SantaAnalysisModal
+          open={isSantaOpen}
+          onClose={() => setIsSantaOpen(false)}
+          loading={isSantaLoading}
+          summary={santaSummary}
+          gift={santaGift}
+          raw={santaRaw}
+          hostName={host?.name}
+          treeContainerRef={treeContainerRef}
+          onToast={showToast}
+        />
 
-      <LoginModal
-        open={isLoginModalOpen}
-        canClose={!pendingTreeData} // pendingTreeData가 있으면 닫기 버튼 비활성화
-        onClose={() => {
-          setIsLoginModalOpen(false);
-        }}
-        onSuccess={() => {
-          setIsLoginModalOpen(false);
-          // 로그인 성공은 onAuthStateChange에서 처리됨
-        }}
-        message={
-          pendingTreeData
-            ? "나중에 다시 수정하거나 친구들의 메시지를 확인하려면 로그인이 필요해요!"
-            : "트리를 관리하려면 로그인이 필요해요!"
-        }
-      />
+        <LoginModal
+          open={isLoginModalOpen}
+          canClose={!pendingTreeData} // pendingTreeData가 있으면 닫기 버튼 비활성화
+          onClose={() => {
+            setIsLoginModalOpen(false);
+          }}
+          onSuccess={() => {
+            setIsLoginModalOpen(false);
+            // 로그인 성공은 onAuthStateChange에서 처리됨
+          }}
+          message={
+            pendingTreeData
+              ? "나중에 다시 수정하거나 친구들의 메시지를 확인하려면 로그인이 필요해요!"
+              : "트리를 관리하려면 로그인이 필요해요!"
+          }
+        />
+      </div>
     </main>
   );
 }
